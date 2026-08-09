@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "584ffd5dce68042aeabf50759a637a0d",
+    "content-hash": "ee8c9ee7214fd63e11bd873441497a16",
     "packages": [
         {
             "name": "adhocore/json-comment",
@@ -152,16 +152,16 @@
         },
         {
             "name": "nethergamesmc/bedrock-protocol",
-            "version": "dev-master",
+            "version": "dev-feature/protocol-2168-support",
             "source": {
                 "type": "git",
-                "url": "https://github.com/NetherGamesMC/BedrockProtocol.git",
-                "reference": "aae6ba55aa75b2c188aade6cadca5fb6d2633d33"
+                "url": "https://github.com/SyntaxStudiosRE/BedrockProtocol.git",
+                "reference": "de3c15330a664cbb6d4772eddb43c564a5b9f6df"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/NetherGamesMC/BedrockProtocol/zipball/aae6ba55aa75b2c188aade6cadca5fb6d2633d33",
-                "reference": "aae6ba55aa75b2c188aade6cadca5fb6d2633d33",
+                "url": "https://api.github.com/repos/SyntaxStudiosRE/BedrockProtocol/zipball/de3c15330a664cbb6d4772eddb43c564a5b9f6df",
+                "reference": "de3c15330a664cbb6d4772eddb43c564a5b9f6df",
                 "shasum": ""
             },
             "require": {
@@ -180,7 +180,6 @@
                 "phpstan/phpstan-strict-rules": "^2.0.0",
                 "phpunit/phpunit": "^9.5 || ^10.0 || ^11.0"
             },
-            "default-branch": true,
             "type": "library",
             "autoload": {
                 "psr-4": {
@@ -202,9 +201,9 @@
             ],
             "description": "An implementation of the Minecraft: Bedrock Edition protocol in PHP",
             "support": {
-                "source": "https://github.com/NetherGamesMC/BedrockProtocol/tree/master"
+                "source": "https://github.com/SyntaxStudiosRE/BedrockProtocol/tree/feature/protocol-2168-support"
             },
-            "time": "2026-06-23T12:39:56+00:00"
+            "time": "2026-08-09T03:42:14+00:00"
         },
         {
             "name": "netresearch/jsonmapper",
