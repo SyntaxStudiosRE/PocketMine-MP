@@ -1383,12 +1383,16 @@ class NetworkSession{
 	 */
 	public function syncPlayerList(array $players) : void{
 		$this->sendDataPacket(PlayerListPacket::add(array_map(function(Player $player) : PlayerListEntry{
-			return PlayerListEntry::createAdditionEntry($player->getUniqueId(), $player->getId(), $player->getDisplayName(), $this->typeConverter->getSkinAdapter()->toSkinData($player->getSkin()), $player->getXuid());
+			return PlayerListEntry::createAdditionEntry($player->getUniqueId(), $player->getId(), $player->getDisplayName(), $this->typeConverter->safeToSkinData($player->getSkin()), $player->getXuid());
 		}, $players)));
 	}
 
 	public function onPlayerAdded(Player $p) : void{
-		$this->sendDataPacket(PlayerListPacket::add([PlayerListEntry::createAdditionEntry($p->getUniqueId(), $p->getId(), $p->getDisplayName(), $this->typeConverter->getSkinAdapter()->toSkinData($p->getSkin()), $p->getXuid())]));
+		try{
+			$this->sendDataPacket(PlayerListPacket::add([PlayerListEntry::createAdditionEntry($p->getUniqueId(), $p->getId(), $p->getDisplayName(), $this->typeConverter->safeToSkinData($p->getSkin()), $p->getXuid())]));
+		}catch(\Throwable $e){
+			file_put_contents("/tmp/onplayeradded_debug.txt", microtime(true) . " EXCEPTION for new player '" . $p->getName() . "' shown to '" . $this->getDisplayName() . "': " . get_class($e) . ": " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n\n", FILE_APPEND);
+		}
 	}
 
 	public function onPlayerRemoved(Player $p) : void{

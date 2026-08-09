@@ -39,6 +39,7 @@ use pocketmine\data\bedrock\item\BlockItemIdMap;
 use pocketmine\data\bedrock\item\downgrade\ItemIdMetaDowngrader;
 use pocketmine\data\bedrock\item\ItemTypeNames;
 use pocketmine\data\SavedDataLoadingException;
+use pocketmine\entity\Skin;
 use pocketmine\item\Item;
 use pocketmine\item\VanillaItems;
 use pocketmine\nbt\LittleEndianNbtSerializer;
@@ -50,6 +51,7 @@ use pocketmine\nbt\TreeRoot;
 use pocketmine\nbt\UnexpectedTagTypeException;
 use pocketmine\network\mcpe\NetworkBroadcastUtils;
 use pocketmine\network\mcpe\protocol\ClientboundPacket;
+use pocketmine\network\mcpe\protocol\ProtocolInfo;
 use pocketmine\network\mcpe\protocol\serializer\ItemTypeDictionary;
 use pocketmine\network\mcpe\protocol\types\GameMode as ProtocolGameMode;
 use pocketmine\network\mcpe\protocol\types\inventory\ItemStack;
@@ -59,6 +61,8 @@ use pocketmine\network\mcpe\protocol\types\recipe\IntIdMetaItemDescriptor;
 use pocketmine\network\mcpe\protocol\types\recipe\RecipeIngredient as ProtocolRecipeIngredient;
 use pocketmine\network\mcpe\protocol\types\recipe\StringIdMetaItemDescriptor;
 use pocketmine\network\mcpe\protocol\types\recipe\TagItemDescriptor;
+use pocketmine\network\mcpe\protocol\types\skin\SkinData;
+use pocketmine\network\mcpe\protocol\types\skin\SkinImage;
 use pocketmine\player\GameMode;
 use pocketmine\player\Player;
 use pocketmine\utils\AssumptionFailedError;
@@ -123,6 +127,42 @@ class TypeConverter{
 
 	public function setSkinAdapter(SkinAdapter $skinAdapter) : void{
 		$this->skinAdapter = $skinAdapter;
+	}
+
+	/**
+	 * Converts a real Skin to wire SkinData, falling back to a known-safe blank skin on any failure.
+	 *
+	 * Found 2026-08-09 in live production: showing a real Player using Bedrock's default (no
+	 * custom skin set, i.e. Steve/Alex) skin to another protocol >= 1.26.40 client disconnects
+	 * that client almost immediately - reproduced repeatedly with a real player and a real
+	 * community server full of other real players, confirmed to stop happening once that
+	 * player set any custom skin. The exact wire-level cause was never isolated (no server-side
+	 * exception is thrown anywhere in the conversion - decode/encode both "succeed" from PHP's
+	 * perspective), so this can't be fixed at the root yet. This defensively substitutes a
+	 * plain, already-proven-safe placeholder skin (same blank skin AimTrapEntity/WayPoint use)
+	 * for that protocol range whenever conversion throws OR whenever the skin looks like an
+	 * unmodified default (bare UUID skinId with no ".customname" suffix, which is what a
+	 * default-skin real player's skinId looks like server-side) - trading a wrong-looking
+	 * character model for that specific viewer/entity for not disconnecting everyone nearby.
+	 */
+	public function safeToSkinData(Skin $skin) : SkinData{
+		try{
+			if($this->protocolId >= ProtocolInfo::PROTOCOL_1_26_40 && !str_contains($skin->getSkinId(), ".")){
+				throw new \RuntimeException("Skin '" . $skin->getSkinId() . "' looks like an unmodified default skin - substituting known-safe placeholder for protocol 2168+");
+			}
+			return $this->skinAdapter->toSkinData($skin);
+		}catch(\Throwable $e){
+			\GlobalLogger::get()->debug("safeToSkinData fallback for skin '" . $skin->getSkinId() . "': " . $e->getMessage());
+			return new SkinData(
+				"Standard_Custom",
+				"",
+				json_encode(["geometry" => ["default" => "geometry.humanoid.customSlim"]], JSON_THROW_ON_ERROR),
+				new SkinImage(64, 64, str_repeat("\x00", 64 * 64 * 4)),
+				[],
+				new SkinImage(0, 0, ""),
+				""
+			);
+		}
 	}
 
 	/**

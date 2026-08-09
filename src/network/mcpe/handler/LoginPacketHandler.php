@@ -238,6 +238,25 @@ class LoginPacketHandler extends PacketHandler{
 
 		$clientData = $this->parseClientData($packet->clientDataJwt);
 
+		//protocol >= 1.26.40 disconnects the client itself (and, observed in production,
+		//kicks every other online player too) a moment after spawning if it logs in with
+		//a Persona skin (Bedrock's "randomized default character" system - what a player
+		//gets if they've never set a custom skin). Confirmed live: switching to any
+		//non-Persona custom skin fixes it, no server-side exception is ever thrown anywhere
+		//in the skin conversion path, and this still happens even logging in alone with no
+		//other players online, so it isn't specifically about being shown to others - the
+		//exact wire-level mechanism was never isolated. Rejecting with a clear, actionable
+		//message here is much better for real players than a silent random-feeling kick
+		//that also takes out everyone else on the server.
+		if($clientData->PersonaSkin && $this->session->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
+			$this->session->disconnectWithError(
+				reason: "Persona (default) skin not supported on this protocol version",
+				disconnectScreenMessage: "Please set a custom skin before joining (default/random characters aren't supported yet on your Minecraft version)."
+			);
+
+			return null;
+		}
+
 		try{
 			$skin = $this->session->getTypeConverter()->getSkinAdapter()->fromSkinData(ClientDataToSkinDataHelper::fromClientData($clientData));
 		}catch(\InvalidArgumentException | InvalidSkinException $e){

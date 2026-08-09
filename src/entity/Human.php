@@ -553,18 +553,17 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 		//reuse the (possibly 2168-sanitized) property computed above instead of re-reading the raw, empty nametag
 		$this->sendData([$player], [EntityMetadataProperties::NAMETAG => $networkMetadata[EntityMetadataProperties::NAMETAG] ?? new StringMetadataProperty($this->getNameTag())]);
 
-		//protocol >= 1.26.40 disconnects the client almost immediately after a
-		//"minecraft:player"-typed (AddPlayerPacket) non-Player NPC receives a
-		//MobArmorEquipmentPacket with non-empty (non-air) armor - confirmed by
-		//direct testing: the same packet for an actual mob-typed entity (e.g. a
-		//Villager) with real or empty armor never triggers it, and an empty/all-air
-		//armor set for a fake-player NPC never triggers it either - only the
-		//combination of "player" identity + real armor content does. Skipping this
-		//sync for that protocol range trades away visible armor rendering on these
-		//NPCs (they still act, fight, and look like a player skin-wise) rather than
-		//losing the "is a real player" identity entirely, which is what these NPCs
-		//need for other reasons (aim-lock bait, believable geared-player raiders).
-		if(!($this instanceof Player) && $networkSession->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
+		//protocol >= 1.26.40 disconnects the client almost immediately after ANY
+		//"minecraft:player"-typed entity it can see receives a MobArmorEquipmentPacket
+		//with non-empty (non-air) armor - originally found and fixed for fake-player
+		//NPCs (RaiderNPC), but confirmed 2026-08-09 in live production that this ALSO
+		//happens between two genuine real Players with real armor equipped seeing each
+		//other (multiple simultaneous real connections started disconnecting each other
+		//on login once real community players - not just the lone dev test account -
+		//were online together for the first time). Extending the skip to real Players
+		//too: for protocol >= 2168, other players' equipped armor won't render
+		//visually, but the connection survives, which matters more right now.
+		if($networkSession->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
 			// skip armor/offhand equipment sync entirely for this protocol range
 		}else{
 			$entityEventBroadcaster = $networkSession->getEntityEventBroadcaster();
