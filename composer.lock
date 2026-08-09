@@ -155,13 +155,13 @@
             "version": "dev-feature/protocol-2168-support",
             "source": {
                 "type": "git",
-                "url": "https://github.com/SyntaxStudiosRE/BedrockProtocol.git",
-                "reference": "de3c15330a664cbb6d4772eddb43c564a5b9f6df"
+                "url": "git@github.com:SyntaxStudiosRE/BedrockProtocol.git",
+                "reference": "df605521665349dcb12912cb96584ef9ca21994e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/SyntaxStudiosRE/BedrockProtocol/zipball/de3c15330a664cbb6d4772eddb43c564a5b9f6df",
-                "reference": "de3c15330a664cbb6d4772eddb43c564a5b9f6df",
+                "url": "https://api.github.com/repos/SyntaxStudiosRE/BedrockProtocol/zipball/df605521665349dcb12912cb96584ef9ca21994e",
+                "reference": "df605521665349dcb12912cb96584ef9ca21994e",
                 "shasum": ""
             },
             "require": {
@@ -200,10 +200,7 @@
                 "LGPL-3.0"
             ],
             "description": "An implementation of the Minecraft: Bedrock Edition protocol in PHP",
-            "support": {
-                "source": "https://github.com/SyntaxStudiosRE/BedrockProtocol/tree/feature/protocol-2168-support"
-            },
-            "time": "2026-08-09T03:42:14+00:00"
+            "time": "2026-08-09T14:30:19+00:00"
         },
         {
             "name": "netresearch/jsonmapper",
