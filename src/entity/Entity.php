@@ -52,6 +52,7 @@ use pocketmine\network\mcpe\EntityEventBroadcaster;
 use pocketmine\network\mcpe\NetworkBroadcastUtils;
 use pocketmine\network\mcpe\protocol\AddActorPacket;
 use pocketmine\network\mcpe\protocol\MoveActorAbsolutePacket;
+use pocketmine\network\mcpe\protocol\ProtocolInfo;
 use pocketmine\network\mcpe\protocol\SetActorMotionPacket;
 use pocketmine\network\mcpe\protocol\types\entity\Attribute as NetworkAttribute;
 use pocketmine\network\mcpe\protocol\types\entity\EntityMetadataCollection;
@@ -59,6 +60,7 @@ use pocketmine\network\mcpe\protocol\types\entity\EntityMetadataFlags;
 use pocketmine\network\mcpe\protocol\types\entity\EntityMetadataProperties;
 use pocketmine\network\mcpe\protocol\types\entity\MetadataProperty;
 use pocketmine\network\mcpe\protocol\types\entity\PropertySyncData;
+use pocketmine\network\mcpe\protocol\types\entity\StringMetadataProperty;
 use pocketmine\player\Player;
 use pocketmine\Server;
 use pocketmine\timings\Timings;
@@ -1516,7 +1518,26 @@ abstract class Entity{
 	 * Called by spawnTo() to send whatever packets needed to spawn the entity to the client.
 	 */
 	protected function sendSpawnPacket(Player $player) : void{
-		$player->getNetworkSession()->sendDataPacket(AddActorPacket::create(
+		$networkSession = $player->getNetworkSession();
+		$networkMetadata = $this->getAllNetworkData();
+		if($networkSession->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
+			//protocol >= 1.26.40 disconnects the client if an AddActorPacket's NAMETAG
+			//metadata property is empty OR contains newlines (empty = any unnamed mob;
+			//multi-line is common for villager-based NPCs, e.g. a combat logger showing
+			//multiple lines of info) - same underlying issue as Human::sendSpawnPacket's
+			//AddPlayerPacket/PlayerListPacket username sanitization, just a different
+			//wire packet since non-Human entities never go through that code path
+			$nametag = $networkMetadata[EntityMetadataProperties::NAMETAG] ?? null;
+			if($nametag instanceof StringMetadataProperty){
+				$value = $nametag->getValue();
+				if($value === ""){
+					$networkMetadata[EntityMetadataProperties::NAMETAG] = new StringMetadataProperty(" ");
+				}elseif(str_contains($value, "\n")){
+					$networkMetadata[EntityMetadataProperties::NAMETAG] = new StringMetadataProperty(str_replace(["\r\n", "\n", "\r"], " ", $value));
+				}
+			}
+		}
+		$networkSession->sendDataPacket(AddActorPacket::create(
 			$this->getId(), //TODO: actor unique ID
 			$this->getId(),
 			static::getNetworkTypeId(),
@@ -1529,7 +1550,7 @@ abstract class Entity{
 			array_map(function(Attribute $attr) : NetworkAttribute{
 				return new NetworkAttribute($attr->getId(), $attr->getMinValue(), $attr->getMaxValue(), $attr->getValue(), $attr->getDefaultValue(), []);
 			}, $this->attributeMap->getAll()),
-			$this->getAllNetworkData(),
+			$networkMetadata,
 			new PropertySyncData([], []),
 			[] //TODO: entity links
 		));
