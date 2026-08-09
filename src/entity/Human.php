@@ -53,6 +53,7 @@ use pocketmine\network\mcpe\NetworkBroadcastUtils;
 use pocketmine\network\mcpe\protocol\AddPlayerPacket;
 use pocketmine\network\mcpe\protocol\PlayerListPacket;
 use pocketmine\network\mcpe\protocol\PlayerSkinPacket;
+use pocketmine\network\mcpe\protocol\ProtocolInfo;
 use pocketmine\network\mcpe\protocol\types\AbilitiesData;
 use pocketmine\network\mcpe\protocol\types\AbilitiesLayer;
 use pocketmine\network\mcpe\protocol\types\command\CommandPermissions;
@@ -498,12 +499,31 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 		$networkSession = $player->getNetworkSession();
 		$typeConverter = $networkSession->getTypeConverter();
 		if(!($this instanceof Player)){
-			$networkSession->sendDataPacket(PlayerListPacket::add([PlayerListEntry::createAdditionEntry($this->uuid, $this->id, $this->getName(), $typeConverter->getSkinAdapter()->toSkinData($this->skin))]));
+			$listUsername = $this->getName();
+			if($networkSession->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
+				//protocol >= 1.26.40 disconnects the client if the PlayerListPacket username contains newlines
+				//(NPC nametags are commonly multi-line, e.g. shop signs)
+				$listUsername = str_replace(["\r\n", "\n", "\r"], " ", $listUsername);
+			}
+			$networkSession->sendDataPacket(PlayerListPacket::add([PlayerListEntry::createAdditionEntry($this->uuid, $this->id, $listUsername, $typeConverter->getSkinAdapter()->toSkinData($this->skin))]));
 		}
 
+		$addPlayerUsername = $this->getName();
+		$networkMetadata = $this->getAllNetworkData();
+		if(!($this instanceof Player) && $networkSession->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
+			//protocol >= 1.26.40 disconnects the client if AddPlayerPacket's username, or its metadata
+			//NAMETAG property, is empty (e.g. a non-Player Human with no nametag set, like an invisible
+			//anti-cheat bait entity)
+			if($addPlayerUsername === ""){
+				$addPlayerUsername = " ";
+			}
+			if(($networkMetadata[EntityMetadataProperties::NAMETAG] ?? null) instanceof StringMetadataProperty && $networkMetadata[EntityMetadataProperties::NAMETAG]->getValue() === ""){
+				$networkMetadata[EntityMetadataProperties::NAMETAG] = new StringMetadataProperty(" ");
+			}
+		}
 		$networkSession->sendDataPacket(AddPlayerPacket::create(
 			$this->getUniqueId(),
-			$this->getName(),
+			$addPlayerUsername,
 			$this->getId(),
 			"",
 			$this->location->asVector3(),
@@ -513,7 +533,7 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 			$this->location->yaw, //TODO: head yaw
 			ItemStackWrapper::legacy($typeConverter->coreItemStackToNet($this->getInventory()->getItemInHand())),
 			GameMode::SURVIVAL,
-			$this->getAllNetworkData(),
+			$networkMetadata,
 			new PropertySyncData([], []),
 			UpdateAbilitiesPacket::create(new AbilitiesData(CommandPermissions::NORMAL, PlayerPermissions::VISITOR, $this->getId() /* TODO: this should be unique ID */, [
 				new AbilitiesLayer(
@@ -530,7 +550,8 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 		));
 
 		//TODO: Hack for MCPE 1.2.13: DATA_NAMETAG is useless in AddPlayerPacket, so it has to be sent separately
-		$this->sendData([$player], [EntityMetadataProperties::NAMETAG => new StringMetadataProperty($this->getNameTag())]);
+		//reuse the (possibly 2168-sanitized) property computed above instead of re-reading the raw, empty nametag
+		$this->sendData([$player], [EntityMetadataProperties::NAMETAG => $networkMetadata[EntityMetadataProperties::NAMETAG] ?? new StringMetadataProperty($this->getNameTag())]);
 
 		$entityEventBroadcaster = $networkSession->getEntityEventBroadcaster();
 		$entityEventBroadcaster->onMobArmorChange([$networkSession], $this);
