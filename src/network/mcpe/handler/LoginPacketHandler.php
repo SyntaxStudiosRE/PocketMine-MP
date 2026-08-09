@@ -244,10 +244,16 @@ class LoginPacketHandler extends PacketHandler{
 		//gets if they've never set a custom skin). Confirmed live: switching to any
 		//non-Persona custom skin fixes it, no server-side exception is ever thrown anywhere
 		//in the skin conversion path, and this still happens even logging in alone with no
-		//other players online, so it isn't specifically about being shown to others - the
-		//exact wire-level mechanism was never isolated. Rejecting with a clear, actionable
-		//message here is much better for real players than a silent random-feeling kick
-		//that also takes out everyone else on the server.
+		//other players online, so it isn't specifically about being shown to others. Also
+		//tested replaying the real decoded Persona SkinData (instead of a random-noise
+		//placeholder) to any viewer, matching how BetterAltay - another PMMP fork with 2168
+		//as its primary protocol - handles it: made no difference, same crash, same timing.
+		//This is consistent with Bedrock's own "multiplayer restricted skin" client-side
+		//policy (see official 26.40 changelog / Mojang support docs) rather than anything
+		//we send being wrong - other established Bedrock server software (Hive, CubeCraft)
+		//disables Persona skins entirely for the same reason. Rejecting with a clear,
+		//actionable message here is much better for real players than a silent kick that
+		//also takes out everyone else on the server.
 		if($clientData->PersonaSkin && $this->session->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
 			$this->session->disconnectWithError(
 				reason: "Persona (default) skin not supported on this protocol version",
