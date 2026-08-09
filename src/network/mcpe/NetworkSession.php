@@ -1078,6 +1078,12 @@ class NetworkSession{
 		$this->player->doFirstSpawn();
 		$this->forceAsyncCompression = false;
 		$this->setHandler(new InGamePacketHandler($this->player, $this, $this->invManager));
+
+		if($this->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
+			//see the comment in PreSpawnPacketHandler for why this is deferred to post-spawn for these clients
+			$this->logger->debug("Sending player list");
+			$this->syncPlayerList($this->server->getOnlinePlayers());
+		}
 	}
 
 	public function onServerDeath(Translatable|string $deathMessage) : void{
