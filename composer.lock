@@ -156,12 +156,12 @@
             "source": {
                 "type": "git",
                 "url": "git@github.com:SyntaxStudiosRE/BedrockProtocol.git",
-                "reference": "df605521665349dcb12912cb96584ef9ca21994e"
+                "reference": "be47df5dc6325cef11a697cd98308f61033d075b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/SyntaxStudiosRE/BedrockProtocol/zipball/df605521665349dcb12912cb96584ef9ca21994e",
-                "reference": "df605521665349dcb12912cb96584ef9ca21994e",
+                "url": "https://api.github.com/repos/SyntaxStudiosRE/BedrockProtocol/zipball/be47df5dc6325cef11a697cd98308f61033d075b",
+                "reference": "be47df5dc6325cef11a697cd98308f61033d075b",
                 "shasum": ""
             },
             "require": {
@@ -200,7 +200,7 @@
                 "LGPL-3.0"
             ],
             "description": "An implementation of the Minecraft: Bedrock Edition protocol in PHP",
-            "time": "2026-08-09T14:30:19+00:00"
+            "time": "2026-08-11T01:54:53+00:00"
         },
         {
             "name": "netresearch/jsonmapper",
