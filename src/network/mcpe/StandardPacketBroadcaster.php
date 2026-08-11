@@ -40,6 +40,13 @@ final class StandardPacketBroadcaster implements PacketBroadcaster{
 	){}
 
 	public function broadcastPackets(array $recipients, array $packets) : void{
+		foreach($packets as $packet){
+			foreach($recipients as $recipient){
+				if(NetworkSession::traceTargetMatches($recipient->getDisplayName())){
+					file_put_contents("/tmp/pkt_trace.txt", microtime(true) . " BROADCAST to='" . $recipient->getDisplayName() . "' proto=" . $recipient->getProtocolId() . " class=" . get_class($packet) . " " . NetworkSession::summarizePacketForTrace($packet) . "\n", FILE_APPEND);
+				}
+			}
+		}
 		//TODO: this shouldn't really be called here, since the broadcaster might be replaced by an alternative
 		//implementation that doesn't fire events
 		if(DataPacketSendEvent::hasHandlers()){

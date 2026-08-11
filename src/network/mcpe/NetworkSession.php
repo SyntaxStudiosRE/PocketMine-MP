@@ -616,6 +616,9 @@ class NetworkSession{
 	 * @phpstan-param PromiseResolver<true>|null $ackReceiptResolver
 	 */
 	private function sendDataPacketInternal(ClientboundPacket $packet, bool $immediate, ?PromiseResolver $ackReceiptResolver) : bool{
+		if(self::traceTargetMatches($this->getDisplayName())){
+			file_put_contents("/tmp/pkt_trace.txt", microtime(true) . " SEND to='" . $this->getDisplayName() . "' proto=" . $this->getProtocolId() . " class=" . get_class($packet) . " " . self::summarizePacketForTrace($packet) . "\n", FILE_APPEND);
+		}
 		if(!$this->connected){
 			return false;
 		}
@@ -658,6 +661,89 @@ class NetworkSession{
 
 	public function sendDataPacket(ClientboundPacket $packet, bool $immediate = false) : bool{
 		return $this->sendDataPacketInternal($packet, $immediate, null);
+	}
+
+	private const TRACE_BLOCKLIST_CLASSES = [
+		"pocketmine\\entity\\Location",
+		"pocketmine\\world\\World",
+		"pocketmine\\player\\Player",
+		"pocketmine\\nbt\\tag\\CompoundTag",
+		"pocketmine\\network\\mcpe\\protocol\\types\\CacheableNbt",
+	];
+
+	private const TRACE_INTERESTING_CLASSES = [
+		"pocketmine\\network\\mcpe\\protocol\\PlayerListPacket",
+		"pocketmine\\network\\mcpe\\protocol\\PlayerSkinPacket",
+		"pocketmine\\network\\mcpe\\protocol\\AddPlayerPacket",
+		"pocketmine\\network\\mcpe\\protocol\\AddActorPacket",
+		"pocketmine\\network\\mcpe\\protocol\\RemoveActorPacket",
+		"pocketmine\\network\\mcpe\\protocol\\SetActorDataPacket",
+	];
+
+	public static function isInterestingForTrace(object $packet) : bool{
+		return in_array(get_class($packet), self::TRACE_INTERESTING_CLASSES, true);
+	}
+
+	public static function traceTargetMatches(string $displayName) : bool{
+		$target = @file_get_contents("/tmp/pkt_trace_target.txt");
+		if($target === false || trim($target) === ""){
+			return false;
+		}
+		foreach(explode(",", trim($target)) as $candidate){
+			if($candidate !== "" && stripos($displayName, $candidate) !== false){
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public static function summarizePacketForTrace(mixed $value, int $depth = 0) : string{
+		if(is_object($value) && in_array(get_class($value), self::TRACE_BLOCKLIST_CLASSES, true)){
+			return get_class($value) . "{...blocklisted...}";
+		}
+		if($depth > 5){
+			return "...";
+		}
+		try{
+			if(is_scalar($value) || $value === null){
+				if(is_string($value)){
+					return strlen($value) > 400 ? var_export(substr($value, 0, 400), true) . "...(" . strlen($value) . " bytes)" : var_export($value, true);
+				}
+				return var_export($value, true);
+			}
+			if(is_array($value)){
+				$parts = [];
+				$i = 0;
+				foreach($value as $k => $v){
+					if($i++ >= 30){
+						$parts[] = "...(" . count($value) . " total)";
+						break;
+					}
+					$parts[] = "$k=" . self::summarizePacketForTrace($v, $depth + 1);
+				}
+				return "[" . implode(", ", $parts) . "]";
+			}
+			if(is_object($value)){
+				$parts = [];
+				foreach((array) $value as $k => $v){
+					$k = (string) $k;
+					if($k !== "" && $k[0] === "\0"){
+						$segments = explode("\0", $k);
+						$cleanKey = $segments[2] ?? $k;
+					}else{
+						$cleanKey = $k;
+					}
+					if($cleanKey === ""){
+						continue;
+					}
+					$parts[] = "$cleanKey=" . self::summarizePacketForTrace($v, $depth + 1);
+				}
+				return get_class($value) . "{" . implode(", ", $parts) . "}";
+			}
+			return gettype($value);
+		}catch(\Throwable $e){
+			return "[summarize error: " . $e->getMessage() . "]";
+		}
 	}
 
 	/**
@@ -1308,6 +1394,11 @@ class NetworkSession{
 	 * @phpstan-param \Closure() : void $onCompletion
 	 */
 	private function sendChunkPacket(string $chunkPacket, \Closure $onCompletion, World $world) : void{
+		if(self::traceTargetMatches($this->getDisplayName())){
+			$crc = hash("crc32b", $chunkPacket);
+			file_put_contents("/tmp/pkt_trace.txt", microtime(true) . " CHUNK to='" . $this->getDisplayName() . "' proto=" . $this->getProtocolId() . " bytes=" . strlen($chunkPacket) . " crc32=" . $crc . "\n", FILE_APPEND);
+			file_put_contents("/tmp/chunk_dump_" . $crc . "_proto" . $this->getProtocolId() . ".bin", $chunkPacket);
+		}
 		$world->timings->syncChunkSend->startTiming();
 		try{
 			$this->queueCompressed($chunkPacket);
@@ -1382,12 +1473,22 @@ class NetworkSession{
 	 * @param Player[] $players
 	 */
 	public function syncPlayerList(array $players) : void{
-		$this->sendDataPacket(PlayerListPacket::add(array_map(function(Player $player) : PlayerListEntry{
-			return PlayerListEntry::createAdditionEntry($player->getUniqueId(), $player->getId(), $player->getDisplayName(), $this->typeConverter->safeToSkinData($player->getSkin()), $player->getXuid());
-		}, $players)));
+		$entries = [];
+		foreach($players as $player){
+			if($this->typeConverter->isUnsafeSkinForPlayerList($player->getSkin())){
+				continue;
+			}
+			$entries[] = PlayerListEntry::createAdditionEntry($player->getUniqueId(), $player->getId(), $player->getDisplayName(), $this->typeConverter->safeToSkinData($player->getSkin()), $player->getXuid());
+		}
+		if(count($entries) > 0){
+			$this->sendDataPacket(PlayerListPacket::add($entries));
+		}
 	}
 
 	public function onPlayerAdded(Player $p) : void{
+		if($this->typeConverter->isUnsafeSkinForPlayerList($p->getSkin())){
+			return;
+		}
 		try{
 			$this->sendDataPacket(PlayerListPacket::add([PlayerListEntry::createAdditionEntry($p->getUniqueId(), $p->getId(), $p->getDisplayName(), $this->typeConverter->safeToSkinData($p->getSkin()), $p->getXuid())]));
 		}catch(\Throwable $e){

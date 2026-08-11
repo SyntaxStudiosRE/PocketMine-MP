@@ -238,25 +238,45 @@ class LoginPacketHandler extends PacketHandler{
 
 		$clientData = $this->parseClientData($packet->clientDataJwt);
 
-		//protocol >= 1.26.40 disconnects the client itself (and, observed in production,
-		//kicks every other online player too) a moment after spawning if it logs in with
-		//a Persona skin (Bedrock's "randomized default character" system - what a player
-		//gets if they've never set a custom skin). Confirmed live: switching to any
-		//non-Persona custom skin fixes it, no server-side exception is ever thrown anywhere
-		//in the skin conversion path, and this still happens even logging in alone with no
-		//other players online, so it isn't specifically about being shown to others. Also
-		//tested replaying the real decoded Persona SkinData (instead of a random-noise
+		//protocol >= 1.26.30 (CURRENT_PROTOCOL, i.e. Bedrock 1.26.30 and its 1.26.31/32/33
+		//hotfixes, all branch r/26_u3 - and everything at/above 2168) disconnects the client
+		//itself (and, observed in production, kicks every other online player too) a moment
+		//after spawning if it logs in with a Persona skin (Bedrock's "randomized default
+		//character" system - what a player gets if they've never set a custom skin, or a
+		//marketplace/customizable skin left in its default state). Confirmed live: switching
+		//to any non-Persona custom skin fixes it, no server-side exception is ever thrown
+		//anywhere in the skin conversion path, and this still happens even logging in alone
+		//with no other players online, so it isn't specifically about being shown to others.
+		//Also tested replaying the real decoded Persona SkinData (instead of a random-noise
 		//placeholder) to any viewer, matching how BetterAltay - another PMMP fork with 2168
 		//as its primary protocol - handles it: made no difference, same crash, same timing.
 		//This is consistent with Bedrock's own "multiplayer restricted skin" client-side
 		//policy (see official 26.40 changelog / Mojang support docs) rather than anything
 		//we send being wrong - other established Bedrock server software (Hive, CubeCraft)
-		//disables Persona skins entirely for the same reason. Rejecting with a clear,
-		//actionable message here is much better for real players than a silent kick that
-		//also takes out everyone else on the server.
-		if($clientData->PersonaSkin && $this->session->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
+		//disables Persona skins entirely for the same reason. Originally this check only
+		//covered PROTOCOL_1_26_40, but the exact same crash (connects, generates world, then
+		//kicks ~600ms later) was confirmed reproducing identically on 1.26.30/31/32/33
+		//clients (protocol 1001, r/26_u3) with a Persona skin, so the same restriction
+		//applies starting at CURRENT_PROTOCOL, not just PROTOCOL_1_26_40. Rejecting with a
+		//clear, actionable message here is much better for real players than a silent kick
+		//that also takes out everyone else on the server.
+		//
+		//PersonaSkin=true only covers the *modern* random-character system. Confirmed live
+		//(packet trace) that the *classic* default skin pack - what a client with no custom
+		//skin set gets assigned instead on some builds (Steve/Alex/Ari/Noor/Efe/Kai/Zuri/
+		//Sunny/Makena, PersonaSkin=false) - triggers the exact same crash for 2168 viewers:
+		//traced a PlayerListPacket containing one of these (skinId
+		//'c18e65aa-7b21-4637-9b63-8ad63622ef01.Alex') sent to a protocol-2168 viewer, who
+		//disconnected 0.16s later, repeatably, across multiple different name suffixes of
+		//the same UUID. That UUID is Mojang's well-known built-in "Classic Skin Pack" content
+		//ID (constant across installs) used to auto-assign these identities, so it's the same
+		//"randomized default character" restriction under a different, older mechanism.
+		if(
+			($clientData->PersonaSkin || str_starts_with($clientData->SkinId, "c18e65aa-7b21-4637-9b63-8ad63622ef01."))
+			&& $this->session->getProtocolId() >= ProtocolInfo::CURRENT_PROTOCOL
+		){
 			$this->session->disconnectWithError(
-				reason: "Persona (default) skin not supported on this protocol version",
+				reason: "Default/random skin not supported on this protocol version",
 				disconnectScreenMessage: "Please set a custom skin before joining (default/random characters aren't supported yet on your Minecraft version)."
 			);
 

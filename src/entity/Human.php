@@ -167,8 +167,11 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 	 */
 	public function sendSkin(?array $targets = null) : void{
 		TypeConverter::broadcastByTypeConverter($targets ?? $this->hasSpawned, function(TypeConverter $typeConverter) : array{
+			if($typeConverter->isUnsafeSkinForPlayerList($this->skin)){
+				return [];
+			}
 			return [
-				PlayerSkinPacket::create($this->getUniqueId(), "", "", $typeConverter->getSkinAdapter()->toSkinData($this->skin))
+				PlayerSkinPacket::create($this->getUniqueId(), "", "", $typeConverter->safeToSkinData($this->skin))
 			];
 		});
 	}

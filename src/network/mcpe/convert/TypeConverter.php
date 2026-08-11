@@ -146,23 +146,35 @@ class TypeConverter{
 	 * character model for that specific viewer/entity for not disconnecting everyone nearby.
 	 */
 	public function safeToSkinData(Skin $skin) : SkinData{
-		try{
-			if($this->protocolId >= ProtocolInfo::PROTOCOL_1_26_40 && !str_contains($skin->getSkinId(), ".")){
-				throw new \RuntimeException("Skin '" . $skin->getSkinId() . "' looks like an unmodified default skin - substituting known-safe placeholder for protocol 2168+");
-			}
-			return $this->skinAdapter->toSkinData($skin);
-		}catch(\Throwable $e){
-			\GlobalLogger::get()->debug("safeToSkinData fallback for skin '" . $skin->getSkinId() . "': " . $e->getMessage());
-			return new SkinData(
-				"Standard_Custom",
-				"",
-				json_encode(["geometry" => ["default" => "geometry.humanoid.customSlim"]], JSON_THROW_ON_ERROR),
-				new SkinImage(64, 64, str_repeat("\x00", 64 * 64 * 4)),
-				[],
-				new SkinImage(0, 0, ""),
-				""
-			);
-		}
+		return $this->skinAdapter->toSkinData($skin);
+	}
+
+	/**
+	 * True if this skin looks like an unmodified default skin (bare UUID skinId with no
+	 * ".customname" suffix, which is what a default-skin real player's skinId looks like
+	 * server-side) shown to a protocol 2168+ viewer. No synthetic replacement SkinData
+	 * we've tried (several: blank/opaque image, matching geometry name to arm size, the
+	 * same blank skin AimTrapEntity/WayPoint use) has avoided disconnecting the viewer -
+	 * every variant crashes exactly like the real thing would. Safest known fix is to
+	 * omit this player from the PlayerListPacket for this viewer entirely rather than
+	 * send ANY skin for them.
+	 */
+	public function isUnsafeSkinForPlayerList(Skin $skin) : bool{
+		//"c18e65aa-7b21-4637-9b63-8ad63622ef01." is Mojang's built-in "Classic Skin Pack"
+		//content ID (constant across installs) used to auto-assign a default identity
+		//(Steve/Alex/Ari/Noor/Efe/Kai/Zuri/Sunny/Makena) to clients with no custom skin set -
+		//confirmed via packet trace to crash 2168 viewers the same way a Persona (modern
+		//random-character) skin does, just via an older mechanism that doesn't set
+		//PersonaSkin=true and does contain a "." (so the no-dot heuristic below misses it).
+		//Confirmed 2026-08-10 the same class of crash reproduces on protocol 975/1001 too,
+		//but ONLY via a re-send later in the session (onPlayerAdded()/syncPlayerList()) -
+		//e.g. right after any inventory content change - not on the very first login-time
+		//PlayerListPacket, which is built through a separate path this check doesn't gate.
+		//Extending to PROTOCOL_1_26_20 covers that later-refresh case for those protocols.
+		return $this->protocolId >= ProtocolInfo::PROTOCOL_1_26_20 && (
+			!str_contains($skin->getSkinId(), ".")
+			|| str_starts_with($skin->getSkinId(), "c18e65aa-7b21-4637-9b63-8ad63622ef01.")
+		);
 	}
 
 	/**
