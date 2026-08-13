@@ -524,6 +524,15 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 				$networkMetadata[EntityMetadataProperties::NAMETAG] = new StringMetadataProperty(" ");
 			}
 		}
+		//protocol >= 1.26.40: per Mojang's official r/26_u4 changelog, AddPlayerPacket's carried
+		//item must never carry a Net Id Variant and must have its NBT stripped down to just an
+		//empty "ench" marker (see strippedCarriedItemForAddPlayer() doc). Using the normal
+		//coreItemStackToNet()+ItemStackWrapper::legacy() pair here (as done for every protocol
+		//below 2168) sets stackId=1/hasNetId=true for any non-air item and keeps its full real
+		//NBT - the opposite of what this field requires.
+		$carriedItem = $networkSession->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40
+			? $typeConverter->strippedCarriedItemForAddPlayer($this->getInventory()->getItemInHand())
+			: ItemStackWrapper::legacy($typeConverter->coreItemStackToNet($this->getInventory()->getItemInHand()));
 		$networkSession->sendDataPacket(AddPlayerPacket::create(
 			$this->getUniqueId(),
 			$addPlayerUsername,
@@ -534,7 +543,7 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 			$this->location->pitch,
 			$this->location->yaw,
 			$this->location->yaw, //TODO: head yaw
-			ItemStackWrapper::legacy($typeConverter->coreItemStackToNet($this->getInventory()->getItemInHand())),
+			$carriedItem,
 			GameMode::SURVIVAL,
 			$networkMetadata,
 			new PropertySyncData([], []),

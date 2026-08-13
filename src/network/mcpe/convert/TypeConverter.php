@@ -57,6 +57,7 @@ use pocketmine\network\mcpe\protocol\types\GameMode as ProtocolGameMode;
 use pocketmine\network\mcpe\protocol\types\inventory\ItemStack;
 use pocketmine\network\mcpe\protocol\types\inventory\ItemStackExtraData;
 use pocketmine\network\mcpe\protocol\types\inventory\ItemStackExtraDataShield;
+use pocketmine\network\mcpe\protocol\types\inventory\ItemStackWrapper;
 use pocketmine\network\mcpe\protocol\types\recipe\IntIdMetaItemDescriptor;
 use pocketmine\network\mcpe\protocol\types\recipe\RecipeIngredient as ProtocolRecipeIngredient;
 use pocketmine\network\mcpe\protocol\types\recipe\StringIdMetaItemDescriptor;
@@ -395,6 +396,41 @@ class TypeConverter{
 			$blockRuntimeId ?? ItemTranslator::NO_BLOCK_RUNTIME_ID,
 			$extraDataSerializer->getData(),
 		);
+	}
+
+	/**
+	 * AddPlayerPacket's "Carried Item" field, protocol 2168+ only. Per the official Mojang
+	 * changelog for r/26_u4 (1.26.40): "The carried item is now captured via
+	 * ItemStack::getStrippedNetworkItem() (item/count/aux/networkUserData/chargedItem); the
+	 * item-stack net id variant is no longer included and network user data is stripped (the
+	 * empty 'ench' key is preserved so enchantment glint still renders)." coreItemStackToNet()
+	 * + ItemStackWrapper::legacy() (used everywhere else, including the old AddPlayerPacket
+	 * call site) sets stackId=1 (hasNetId=true) for ANY non-air item and keeps the item's full
+	 * real NBT (name/lore/real enchant levels/custom data) - exactly what this field must NOT
+	 * have. This produces a wire-correct substitute: same id/meta/count/blockRuntimeId, stackId
+	 * forced to 0 so no Net Id Variant gets written, and NBT reduced to just an empty "ench"
+	 * ListTag when the item actually has enchantments (nothing else - no name, no lore, no real
+	 * enchant data) or omitted entirely otherwise.
+	 */
+	public function strippedCarriedItemForAddPlayer(Item $itemStack) : ItemStackWrapper{
+		$networkItem = $this->coreItemStackToNet($itemStack);
+		if($networkItem->getId() === 0){
+			return new ItemStackWrapper(0, $networkItem);
+		}
+
+		$strippedNbt = $itemStack->hasEnchantments() ? CompoundTag::create()->setTag(Item::TAG_ENCH, new ListTag([])) : null;
+
+		$extraData = new ItemStackExtraData($strippedNbt, canPlaceOn: [], canDestroy: []);
+		$extraDataSerializer = new ByteBufferWriter();
+		$extraData->write($extraDataSerializer);
+
+		return new ItemStackWrapper(0, new ItemStack(
+			$networkItem->getId(),
+			$networkItem->getMeta(),
+			$networkItem->getCount(),
+			$networkItem->getBlockRuntimeId(),
+			$extraDataSerializer->getData(),
+		));
 	}
 
 	/**
