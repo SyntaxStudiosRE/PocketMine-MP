@@ -1478,7 +1478,14 @@ class NetworkSession{
 			if($this->typeConverter->isUnsafeSkinForPlayerList($player->getSkin())){
 				continue;
 			}
-			$entries[] = PlayerListEntry::createAdditionEntry($player->getUniqueId(), $player->getId(), $player->getDisplayName(), $this->typeConverter->safeToSkinData($player->getSkin()), $player->getXuid());
+			//getName() (raw username), not getDisplayName(): Bedrock's PlayerListPacket
+			//username field also drives the client's native "@" chat-mention autocomplete.
+			//A rank plugin's colored/prefixed getDisplayName() (e.g. "§4[§cOWNER§4]§r  §rName")
+			//gets offered as the mention target and inserted verbatim (quoted, since it
+			//contains spaces) into the composer - see PlayerListEntry below. Chat message
+			//formatting and the floating nametag both still use getDisplayName() elsewhere
+			//and are unaffected by this.
+			$entries[] = PlayerListEntry::createAdditionEntry($player->getUniqueId(), $player->getId(), $player->getName(), $this->typeConverter->safeToSkinData($player->getSkin()), $player->getXuid());
 		}
 		if(count($entries) > 0){
 			$this->sendDataPacket(PlayerListPacket::add($entries));
@@ -1490,7 +1497,7 @@ class NetworkSession{
 			return;
 		}
 		try{
-			$this->sendDataPacket(PlayerListPacket::add([PlayerListEntry::createAdditionEntry($p->getUniqueId(), $p->getId(), $p->getDisplayName(), $this->typeConverter->safeToSkinData($p->getSkin()), $p->getXuid())]));
+			$this->sendDataPacket(PlayerListPacket::add([PlayerListEntry::createAdditionEntry($p->getUniqueId(), $p->getId(), $p->getName(), $this->typeConverter->safeToSkinData($p->getSkin()), $p->getXuid())]));
 		}catch(\Throwable $e){
 			file_put_contents("/tmp/onplayeradded_debug.txt", microtime(true) . " EXCEPTION for new player '" . $p->getName() . "' shown to '" . $this->getDisplayName() . "': " . get_class($e) . ": " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n\n", FILE_APPEND);
 		}

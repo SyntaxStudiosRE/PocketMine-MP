@@ -154,8 +154,12 @@ class TypeConverter{
 	 * ".customname" suffix, which is what a default-skin real player's skinId looks like
 	 * server-side) shown to a protocol 2168+ viewer. No synthetic replacement SkinData
 	 * we've tried (several: blank/opaque image, matching geometry name to arm size, the
-	 * same blank skin AimTrapEntity/WayPoint use) has avoided disconnecting the viewer -
-	 * every variant crashes exactly like the real thing would. Safest known fix is to
+	 * same blank skin AimTrapEntity/WayPoint use, a real player-shaped "uuid.name" skinId
+	 * paired with solid-gray non-zero pixel data - confirmed live 2026-08-14, still crashes)
+	 * has avoided disconnecting the viewer - every variant crashes exactly like the real
+	 * thing would, including full replays of the real decoded SkinData (id, pixels, persona
+	 * flag/pieces all genuine - see commit 556d475d5). Both "id shape" and "pixel content"
+	 * have now been independently varied and ruled out as the trigger. Safest known fix is to
 	 * omit this player from the PlayerListPacket for this viewer entirely rather than
 	 * send ANY skin for them.
 	 */
