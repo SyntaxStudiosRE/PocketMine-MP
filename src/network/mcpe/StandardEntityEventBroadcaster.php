@@ -127,18 +127,11 @@ final class StandardEntityEventBroadcaster implements EntityEventBroadcaster{
 	}
 
 	public function onMobArmorChange(array $recipients, Living $mob) : void{
-		//protocol >= 1.26.40 disconnects the client shortly after any "minecraft:player"-
-		//typed entity it can see gets a MobArmorEquipmentPacket with real (non-air) armor.
-		//Human::sendSpawnPacket() already skips this at spawn time for that protocol range,
-		//but ArmorInventory's onAnyChange listener (Living::initEntity()) ALSO calls this
-		//method independently every time armor content changes - including right when a
-		//player logs in and their saved armor loads into the inventory, which is a
-		//completely separate call path spawn-time gating doesn't cover. Guarding here
-		//catches both: every recipient in one call shares the same protocol (grouped by
-		//NetworkBroadcastUtils::broadcastEntityEvent() before this is ever invoked).
-		if(count($recipients) > 0 && $recipients[array_key_first($recipients)]->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
-			return;
-		}
+		//protocol >= 1.26.40 used to disconnect the client shortly after any "minecraft:player"-
+		//typed entity it can see got a MobArmorEquipmentPacket with real (non-air) armor. Root
+		//cause turned out to be the stack ID VarInt encoding bug in
+		//CommonTypes::putNetworkItemStackDescriptor() - confirmed fixed live 2026-08-13, no
+		//longer needs to be skipped for this protocol range.
 		$inv = $mob->getArmorInventory();
 		$converter = $this->typeConverter;
 		$this->sendDataPacket($recipients, MobArmorEquipmentPacket::create(

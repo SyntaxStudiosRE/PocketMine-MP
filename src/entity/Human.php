@@ -556,23 +556,16 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 		//reuse the (possibly 2168-sanitized) property computed above instead of re-reading the raw, empty nametag
 		$this->sendData([$player], [EntityMetadataProperties::NAMETAG => $networkMetadata[EntityMetadataProperties::NAMETAG] ?? new StringMetadataProperty($this->getNameTag())]);
 
-		//protocol >= 1.26.40 disconnects the client almost immediately after ANY
-		//"minecraft:player"-typed entity it can see receives a MobArmorEquipmentPacket
-		//with non-empty (non-air) armor - originally found and fixed for fake-player
-		//NPCs (RaiderNPC), but confirmed 2026-08-09 in live production that this ALSO
-		//happens between two genuine real Players with real armor equipped seeing each
-		//other (multiple simultaneous real connections started disconnecting each other
-		//on login once real community players - not just the lone dev test account -
-		//were online together for the first time). Extending the skip to real Players
-		//too: for protocol >= 2168, other players' equipped armor won't render
-		//visually, but the connection survives, which matters more right now.
-		if($networkSession->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40){
-			// skip armor/offhand equipment sync entirely for this protocol range
-		}else{
-			$entityEventBroadcaster = $networkSession->getEntityEventBroadcaster();
-			$entityEventBroadcaster->onMobArmorChange([$networkSession], $this);
-			$entityEventBroadcaster->onMobOffHandItemChange([$networkSession], $this);
-		}
+		//protocol >= 1.26.40 used to disconnect the client almost immediately after ANY
+		//"minecraft:player"-typed entity it can see received a MobArmorEquipmentPacket with
+		//non-empty (non-air) armor, so this was skipped entirely for that protocol range.
+		//Root cause turned out to be the stack ID VarInt encoding bug in
+		//CommonTypes::putNetworkItemStackDescriptor() (used by MobArmorEquipmentPacket too) -
+		//confirmed fixed live 2026-08-13 with two real players seeing each other's real
+		//armor on protocol 2168 with no disconnect, so the skip is no longer needed.
+		$entityEventBroadcaster = $networkSession->getEntityEventBroadcaster();
+		$entityEventBroadcaster->onMobArmorChange([$networkSession], $this);
+		$entityEventBroadcaster->onMobOffHandItemChange([$networkSession], $this);
 
 		if(!($this instanceof Player)){
 			$networkSession->sendDataPacket(PlayerListPacket::remove([PlayerListEntry::createRemovalEntry($this->uuid)]));
