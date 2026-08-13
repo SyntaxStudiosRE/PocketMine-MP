@@ -166,12 +166,15 @@ class TypeConverter{
 		//confirmed via packet trace to crash 2168 viewers the same way a Persona (modern
 		//random-character) skin does, just via an older mechanism that doesn't set
 		//PersonaSkin=true and does contain a "." (so the no-dot heuristic below misses it).
-		//Confirmed 2026-08-10 the same class of crash reproduces on protocol 975/1001 too,
-		//but ONLY via a re-send later in the session (onPlayerAdded()/syncPlayerList()) -
-		//e.g. right after any inventory content change - not on the very first login-time
-		//PlayerListPacket, which is built through a separate path this check doesn't gate.
-		//Extending to PROTOCOL_1_26_20 covers that later-refresh case for those protocols.
-		return $this->protocolId >= ProtocolInfo::PROTOCOL_1_26_20 && (
+		//
+		//IMPORTANT: this is 2168-ONLY, same as the login-time rejection in
+		//LoginPacketHandler - see the long comment there. This was briefly extended down to
+		//PROTOCOL_1_26_20 (975/1001) on 2026-08-10 after what looked like the same crash
+		//reproducing there, but that was a false positive caused by an unrelated encoding
+		//bug (now fixed - see BedrockProtocol commits be47df5/5f914f1). Confirmed live
+		//2026-08-13 with the encoding bug fixed: a default/Persona skin causes zero issue on
+		//975/1001 with this check fully disabled, so it must stay 2168-only.
+		return $this->protocolId >= ProtocolInfo::PROTOCOL_1_26_40 && (
 			!str_contains($skin->getSkinId(), ".")
 			|| str_starts_with($skin->getSkinId(), "c18e65aa-7b21-4637-9b63-8ad63622ef01.")
 		);
