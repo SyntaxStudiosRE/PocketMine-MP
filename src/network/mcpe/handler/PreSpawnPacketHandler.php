@@ -114,7 +114,7 @@ class PreSpawnPacketHandler extends PacketHandler{
 				sprintf("%s %s", VersionInfo::NAME, VersionInfo::VERSION()->getFullVersion(true)),
 				Uuid::fromString(Uuid::NIL),
 				false,
-				false,
+				$protocolId >= ProtocolInfo::PROTOCOL_1_26_40,
 				false,
 				new NetworkPermissions(disableClientSounds: true),
 				true,
@@ -164,8 +164,13 @@ class PreSpawnPacketHandler extends PacketHandler{
 			$this->session->getLogger()->debug("Sending crafting data");
 			$this->session->sendDataPacket(CraftingDataCache::getInstance($protocolId)->getCache($this->server->getCraftingManager()));
 
-			$this->session->getLogger()->debug("Sending player list");
-			$this->session->syncPlayerList($this->server->getOnlinePlayers());
+			if($protocolId < ProtocolInfo::PROTOCOL_1_26_40){
+				//protocol >= 1.26.40 rejects (silently disconnects) a PlayerListPacket ADD entry for its own player
+				//sent before spawn is complete; for those clients it's sent post-spawn instead, see
+				//NetworkSession::onClientSpawnResponse
+				$this->session->getLogger()->debug("Sending player list");
+				$this->session->syncPlayerList($this->server->getOnlinePlayers());
+			}
 		}finally{
 			Timings::$playerNetworkSendPreSpawnGameData->stopTiming();
 		}

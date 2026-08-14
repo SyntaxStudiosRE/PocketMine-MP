@@ -21,7 +21,12 @@ We maintain this fork to power our own Bedrock servers (including **Legacy**). I
 - 🧩 **Powerful plugin API** - extend and customise gameplay as you see fit
 - 🌐 **Multi-world support** - offer a more varied game experience to players without transferring them to other server nodes
 - 🏎️ **Performance** - get 100+ players onto one server (depending on hardware and plugins)
-- 🔀 **Multi-protocol** - inherited from NetherGamesMC, supports multiple Bedrock client versions at once
+- 🔀 **Multi-protocol** - built on NetherGamesMC's multi-protocol base, extended by us with **native support for Bedrock 1.26.40/42 (protocol 2168)** running simultaneously alongside 1.26.20-33 (975/1001) and 1.21.111 (844) - no proxy layer involved
+
+## Why we're sharing this
+When Bedrock 1.26.40 shipped, none of the multi-protocol PMMP forks we depend on had support for it yet, and pmmp/PocketMine-MP itself had already been archived. Rather than run a translation proxy in front of an older server build, we added native 2168 support directly into this fork - encoding fixes, entity/inventory/skin handling, and the packet-timing quirks specific to that client version, all reverse-engineered against the official Bedrock protocol docs and cross-checked against independent implementations (CloudburstMC/Geyser, BetterAltay).
+
+We're publishing that work because it plugs a real gap in the PMMP fork ecosystem - as far as we've found, no other multi-version fork combines 844/975/1001/2168 in the same running server - and because we'd rather see it benefit other server operators than sit unused in a private repo.
 
 ## :x: PocketMine-MP is NOT a vanilla Minecraft server software.
 **It is poorly suited to hosting vanilla survival servers.**
@@ -32,8 +37,15 @@ This project would not exist without the work of the original **PMMP team** (in 
 
 `pmmp/PocketMine-MP` was archived on 2026-07-09 after the team announced an end of support, having left [documentation on the protocol update process](https://doc.pmmp.io/en/rtfd/developers/internals-docs/updating-minecraft-protocol.html) for anyone wishing to continue the work. NetherGamesMC's fork remains actively maintained and is what this repository tracks.
 
+Maintained by [Giovany Sosa](https://github.com/GiovanySosa) for SyntaxStudios.
+
 ## Building & Contributing
-This is an internal fork maintained for SyntaxStudios' own infrastructure. See [BUILDING.md](BUILDING.md) for build instructions.
+This fork is primarily maintained for SyntaxStudios' own infrastructure, but it's public so others can use or build on the protocol work. See [BUILDING.md](BUILDING.md) for build instructions.
+
+If you're developing PMMP plugins, check out [PMMP Studio](https://marketplace.visualstudio.com/items?itemName=GiovanySosa.pmmp-studio), a VS Code extension for PocketMine-MP plugin development.
+
+## Running the server
+`PocketMine-MP.phar` **will not run on a stock PHP install.** Like upstream PMMP, it needs a PHP build with several non-default extensions (`pmmpthread`, `chunkutils2`, `leveldb`, `morton`, `encoding`, `crypto`, among others) that aren't available as regular PECL/OS packages. Use one of [pmmp/PHP-Binaries](https://github.com/pmmp/PHP-Binaries/releases)' precompiled builds (PHP 8.1-8.5, Linux/Windows/macOS) - they're compiled from the same PHP fork this project depends on, we don't maintain a separate one. Point `start.sh`/`start.cmd`/`start.ps1` at that binary instead of your system PHP.
 
 ## Licensing information
 This project is licensed under **LGPL-3.0**, inherited unchanged from the upstream project. Please see the [LICENSE](/LICENSE) file for details.

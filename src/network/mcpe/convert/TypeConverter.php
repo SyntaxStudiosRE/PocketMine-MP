@@ -39,6 +39,7 @@ use pocketmine\data\bedrock\item\BlockItemIdMap;
 use pocketmine\data\bedrock\item\downgrade\ItemIdMetaDowngrader;
 use pocketmine\data\bedrock\item\ItemTypeNames;
 use pocketmine\data\SavedDataLoadingException;
+use pocketmine\entity\Skin;
 use pocketmine\item\Item;
 use pocketmine\item\VanillaItems;
 use pocketmine\nbt\LittleEndianNbtSerializer;
@@ -50,15 +51,19 @@ use pocketmine\nbt\TreeRoot;
 use pocketmine\nbt\UnexpectedTagTypeException;
 use pocketmine\network\mcpe\NetworkBroadcastUtils;
 use pocketmine\network\mcpe\protocol\ClientboundPacket;
+use pocketmine\network\mcpe\protocol\ProtocolInfo;
 use pocketmine\network\mcpe\protocol\serializer\ItemTypeDictionary;
 use pocketmine\network\mcpe\protocol\types\GameMode as ProtocolGameMode;
 use pocketmine\network\mcpe\protocol\types\inventory\ItemStack;
 use pocketmine\network\mcpe\protocol\types\inventory\ItemStackExtraData;
 use pocketmine\network\mcpe\protocol\types\inventory\ItemStackExtraDataShield;
+use pocketmine\network\mcpe\protocol\types\inventory\ItemStackWrapper;
 use pocketmine\network\mcpe\protocol\types\recipe\IntIdMetaItemDescriptor;
 use pocketmine\network\mcpe\protocol\types\recipe\RecipeIngredient as ProtocolRecipeIngredient;
 use pocketmine\network\mcpe\protocol\types\recipe\StringIdMetaItemDescriptor;
 use pocketmine\network\mcpe\protocol\types\recipe\TagItemDescriptor;
+use pocketmine\network\mcpe\protocol\types\skin\SkinData;
+use pocketmine\network\mcpe\protocol\types\skin\SkinImage;
 use pocketmine\player\GameMode;
 use pocketmine\player\Player;
 use pocketmine\utils\AssumptionFailedError;
@@ -123,6 +128,61 @@ class TypeConverter{
 
 	public function setSkinAdapter(SkinAdapter $skinAdapter) : void{
 		$this->skinAdapter = $skinAdapter;
+	}
+
+	/**
+	 * Converts a real Skin to wire SkinData, falling back to a known-safe blank skin on any failure.
+	 *
+	 * Found 2026-08-09 in live production: showing a real Player using Bedrock's default (no
+	 * custom skin set, i.e. Steve/Alex) skin to another protocol >= 1.26.40 client disconnects
+	 * that client almost immediately - reproduced repeatedly with a real player and a real
+	 * community server full of other real players, confirmed to stop happening once that
+	 * player set any custom skin. The exact wire-level cause was never isolated (no server-side
+	 * exception is thrown anywhere in the conversion - decode/encode both "succeed" from PHP's
+	 * perspective), so this can't be fixed at the root yet. This defensively substitutes a
+	 * plain, already-proven-safe placeholder skin (same blank skin AimTrapEntity/WayPoint use)
+	 * for that protocol range whenever conversion throws OR whenever the skin looks like an
+	 * unmodified default (bare UUID skinId with no ".customname" suffix, which is what a
+	 * default-skin real player's skinId looks like server-side) - trading a wrong-looking
+	 * character model for that specific viewer/entity for not disconnecting everyone nearby.
+	 */
+	public function safeToSkinData(Skin $skin) : SkinData{
+		return $this->skinAdapter->toSkinData($skin);
+	}
+
+	/**
+	 * True if this skin looks like an unmodified default skin (bare UUID skinId with no
+	 * ".customname" suffix, which is what a default-skin real player's skinId looks like
+	 * server-side) shown to a protocol 2168+ viewer. No synthetic replacement SkinData
+	 * we've tried (several: blank/opaque image, matching geometry name to arm size, the
+	 * same blank skin AimTrapEntity/WayPoint use, a real player-shaped "uuid.name" skinId
+	 * paired with solid-gray non-zero pixel data - confirmed live 2026-08-14, still crashes)
+	 * has avoided disconnecting the viewer - every variant crashes exactly like the real
+	 * thing would, including full replays of the real decoded SkinData (id, pixels, persona
+	 * flag/pieces all genuine - see commit 556d475d5). Both "id shape" and "pixel content"
+	 * have now been independently varied and ruled out as the trigger. Safest known fix is to
+	 * omit this player from the PlayerListPacket for this viewer entirely rather than
+	 * send ANY skin for them.
+	 */
+	public function isUnsafeSkinForPlayerList(Skin $skin) : bool{
+		//"c18e65aa-7b21-4637-9b63-8ad63622ef01." is Mojang's built-in "Classic Skin Pack"
+		//content ID (constant across installs) used to auto-assign a default identity
+		//(Steve/Alex/Ari/Noor/Efe/Kai/Zuri/Sunny/Makena) to clients with no custom skin set -
+		//confirmed via packet trace to crash 2168 viewers the same way a Persona (modern
+		//random-character) skin does, just via an older mechanism that doesn't set
+		//PersonaSkin=true and does contain a "." (so the no-dot heuristic below misses it).
+		//
+		//IMPORTANT: this is 2168-ONLY, same as the login-time rejection in
+		//LoginPacketHandler - see the long comment there. This was briefly extended down to
+		//PROTOCOL_1_26_20 (975/1001) on 2026-08-10 after what looked like the same crash
+		//reproducing there, but that was a false positive caused by an unrelated encoding
+		//bug (now fixed - see BedrockProtocol commits be47df5/5f914f1). Confirmed live
+		//2026-08-13 with the encoding bug fixed: a default/Persona skin causes zero issue on
+		//975/1001 with this check fully disabled, so it must stay 2168-only.
+		return $this->protocolId >= ProtocolInfo::PROTOCOL_1_26_40 && (
+			!str_contains($skin->getSkinId(), ".")
+			|| str_starts_with($skin->getSkinId(), "c18e65aa-7b21-4637-9b63-8ad63622ef01.")
+		);
 	}
 
 	/**
@@ -336,6 +396,41 @@ class TypeConverter{
 			$blockRuntimeId ?? ItemTranslator::NO_BLOCK_RUNTIME_ID,
 			$extraDataSerializer->getData(),
 		);
+	}
+
+	/**
+	 * AddPlayerPacket's "Carried Item" field, protocol 2168+ only. Per the official Mojang
+	 * changelog for r/26_u4 (1.26.40): "The carried item is now captured via
+	 * ItemStack::getStrippedNetworkItem() (item/count/aux/networkUserData/chargedItem); the
+	 * item-stack net id variant is no longer included and network user data is stripped (the
+	 * empty 'ench' key is preserved so enchantment glint still renders)." coreItemStackToNet()
+	 * + ItemStackWrapper::legacy() (used everywhere else, including the old AddPlayerPacket
+	 * call site) sets stackId=1 (hasNetId=true) for ANY non-air item and keeps the item's full
+	 * real NBT (name/lore/real enchant levels/custom data) - exactly what this field must NOT
+	 * have. This produces a wire-correct substitute: same id/meta/count/blockRuntimeId, stackId
+	 * forced to 0 so no Net Id Variant gets written, and NBT reduced to just an empty "ench"
+	 * ListTag when the item actually has enchantments (nothing else - no name, no lore, no real
+	 * enchant data) or omitted entirely otherwise.
+	 */
+	public function strippedCarriedItemForAddPlayer(Item $itemStack) : ItemStackWrapper{
+		$networkItem = $this->coreItemStackToNet($itemStack);
+		if($networkItem->getId() === 0){
+			return new ItemStackWrapper(0, $networkItem);
+		}
+
+		$strippedNbt = $itemStack->hasEnchantments() ? CompoundTag::create()->setTag(Item::TAG_ENCH, new ListTag([])) : null;
+
+		$extraData = new ItemStackExtraData($strippedNbt, canPlaceOn: [], canDestroy: []);
+		$extraDataSerializer = new ByteBufferWriter();
+		$extraData->write($extraDataSerializer);
+
+		return new ItemStackWrapper(0, new ItemStack(
+			$networkItem->getId(),
+			$networkItem->getMeta(),
+			$networkItem->getCount(),
+			$networkItem->getBlockRuntimeId(),
+			$extraDataSerializer->getData(),
+		));
 	}
 
 	/**

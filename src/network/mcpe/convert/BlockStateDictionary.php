@@ -57,13 +57,35 @@ final class BlockStateDictionary{
 	private ?array $idMetaToStateIdLookupCache = null;
 
 	/**
+	 * Maps ordinal index (the index into $states) => network hash, and vice versa. Only populated when this
+	 * dictionary was loaded with $useHashedRuntimeIds - see loadFromString().
+	 * @var int[]
+	 * @phpstan-var array<int, int>
+	 */
+	private array $ordinalToHash = [];
+	/**
+	 * @var int[]
+	 * @phpstan-var array<int, int>
+	 */
+	private array $hashToOrdinal = [];
+
+	/**
 	 * @param BlockStateDictionaryEntry[] $states
 	 *
 	 * @phpstan-param list<BlockStateDictionaryEntry> $states
 	 */
 	public function __construct(
-		private array $states
+		private array $states,
+		private bool $useHashedRuntimeIds = false
 	){
+		if($this->useHashedRuntimeIds){
+			foreach($this->states as $ordinal => $entry){
+				$hash = $entry->computeNetworkStateHash();
+				$this->ordinalToHash[$ordinal] = $hash;
+				$this->hashToOrdinal[$hash] = $ordinal;
+			}
+		}
+
 		$table = [];
 		foreach($this->states as $stateId => $stateNbt){
 			$table[$stateNbt->getStateName()][$stateNbt->getRawStateProperties()] = $stateId;
@@ -120,12 +142,30 @@ final class BlockStateDictionary{
 		return $this->idMetaToStateIdLookupCache;
 	}
 
+	/**
+	 * Translates a network runtime ID (ordinal, or hash for hashed-ID protocols) into the ordinal index used to
+	 * index into $this->states.
+	 */
+	private function networkRuntimeIdToOrdinal(int $networkRuntimeId) : ?int{
+		return $this->useHashedRuntimeIds ? ($this->hashToOrdinal[$networkRuntimeId] ?? null) : $networkRuntimeId;
+	}
+
+	/**
+	 * Translates an ordinal index (into $this->states) into the network runtime ID (ordinal, or hash for
+	 * hashed-ID protocols).
+	 */
+	private function ordinalToNetworkRuntimeId(int $ordinal) : int{
+		return $this->useHashedRuntimeIds ? $this->ordinalToHash[$ordinal] : $ordinal;
+	}
+
 	public function generateDataFromStateId(int $networkRuntimeId) : ?BlockStateData{
-		return ($this->states[$networkRuntimeId] ?? null)?->generateStateData();
+		$ordinal = $this->networkRuntimeIdToOrdinal($networkRuntimeId);
+		return ($ordinal === null ? null : ($this->states[$ordinal] ?? null))?->generateStateData();
 	}
 
 	public function generateCurrentDataFromStateId(int $networkRuntimeId) : ?BlockStateData{
-		return ($this->states[$networkRuntimeId] ?? null)?->generateCurrentStateData();
+		$ordinal = $this->networkRuntimeIdToOrdinal($networkRuntimeId);
+		return ($ordinal === null ? null : ($this->states[$ordinal] ?? null))?->generateCurrentStateData();
 	}
 
 	/**
@@ -136,11 +176,12 @@ final class BlockStateDictionary{
 		$name = $data->getName();
 
 		$lookup = $this->stateDataToStateIdLookup[$name] ?? null;
-		return match(true){
+		$ordinal = match(true){
 			$lookup === null => null,
 			is_int($lookup) => $lookup,
 			is_array($lookup) => $lookup[BlockStateDictionaryEntry::encodeStateProperties($data->getStates())] ?? null
 		};
+		return $ordinal === null ? null : $this->ordinalToNetworkRuntimeId($ordinal);
 	}
 
 	/**
@@ -148,7 +189,8 @@ final class BlockStateDictionary{
 	 * This is used for serializing crafting recipe inputs.
 	 */
 	public function getMetaFromStateId(int $networkRuntimeId) : ?int{
-		return ($this->states[$networkRuntimeId] ?? null)?->getMeta();
+		$ordinal = $this->networkRuntimeIdToOrdinal($networkRuntimeId);
+		return ($ordinal === null ? null : ($this->states[$ordinal] ?? null))?->getMeta();
 	}
 
 	/**
@@ -157,11 +199,12 @@ final class BlockStateDictionary{
 	 */
 	public function lookupStateIdFromIdMeta(string $id, int $meta) : ?int{
 		$metas = $this->getIdMetaToStateIdLookup()[$id] ?? null;
-		return match(true){
+		$ordinal = match(true){
 			$metas === null => null,
 			is_int($metas) => $metas,
 			is_array($metas) => $metas[$meta] ?? null
 		};
+		return $ordinal === null ? null : $this->ordinalToNetworkRuntimeId($ordinal);
 	}
 
 	/**
@@ -184,7 +227,7 @@ final class BlockStateDictionary{
 		);
 	}
 
-	public static function loadFromString(string $blockPaletteContents, string $metaMapContents) : self{
+	public static function loadFromString(string $blockPaletteContents, string $metaMapContents, bool $useHashedRuntimeIds = false) : self{
 		$upgrader = GlobalBlockStateHandlers::getUpgrader()->getBlockStateUpgrader();
 		$metaMap = json_decode($metaMapContents, flags: JSON_THROW_ON_ERROR);
 		if(!is_array($metaMap)){
@@ -216,6 +259,6 @@ final class BlockStateDictionary{
 			$entries[$i] = new BlockStateDictionaryEntry($uniqueName, $newState->getStates(), $meta, $newState->equals($state) ? null : $state);
 		}
 
-		return new self($entries);
+		return new self($entries, $useHashedRuntimeIds);
 	}
 }
