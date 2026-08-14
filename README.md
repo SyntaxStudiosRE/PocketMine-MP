@@ -44,6 +44,9 @@ This fork is primarily maintained for SyntaxStudios' own infrastructure, but it'
 
 If you're developing PMMP plugins, check out [PMMP Studio](https://marketplace.visualstudio.com/items?itemName=GiovanySosa.pmmp-studio), a VS Code extension for PocketMine-MP plugin development.
 
+## Running the server
+`PocketMine-MP.phar` **will not run on a stock PHP install.** Like upstream PMMP, it needs a PHP build with several non-default extensions (`pmmpthread`, `chunkutils2`, `leveldb`, `morton`, `encoding`, `crypto`, among others) that aren't available as regular PECL/OS packages. Use one of [pmmp/PHP-Binaries](https://github.com/pmmp/PHP-Binaries/releases)' precompiled builds (PHP 8.1-8.5, Linux/Windows/macOS) - they're compiled from the same PHP fork this project depends on, we don't maintain a separate one. Point `start.sh`/`start.cmd`/`start.ps1` at that binary instead of your system PHP.
+
 ## Licensing information
 This project is licensed under **LGPL-3.0**, inherited unchanged from the upstream project. Please see the [LICENSE](/LICENSE) file for details.
 

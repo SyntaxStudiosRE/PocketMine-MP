@@ -68,4 +68,6 @@ jobs:
           body: |
             See [CHANGELOG.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for what's new.
 
+            :information_source: `PocketMine-MP.phar` needs a PMMP-compiled PHP build to run, not stock PHP. Download the recommended binary [here](https://github.com/pmmp/PHP-Binaries/releases/tag/pm5-php-${{ env.PHP_VERSION }}-latest).
+
             :warning: Found a bug? Report it on our [issue tracker](${{ github.server_url }}/${{ github.repository }}/issues).
