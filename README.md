@@ -37,8 +37,12 @@ This project would not exist without the work of the original **PMMP team** (in 
 
 `pmmp/PocketMine-MP` was archived on 2026-07-09 after the team announced an end of support, having left [documentation on the protocol update process](https://doc.pmmp.io/en/rtfd/developers/internals-docs/updating-minecraft-protocol.html) for anyone wishing to continue the work. NetherGamesMC's fork remains actively maintained and is what this repository tracks.
 
+Maintained by [Giovany Sosa](https://github.com/GiovanySosa) for SyntaxStudios.
+
 ## Building & Contributing
 This fork is primarily maintained for SyntaxStudios' own infrastructure, but it's public so others can use or build on the protocol work. See [BUILDING.md](BUILDING.md) for build instructions.
+
+If you're developing PMMP plugins, check out [PMMP Studio](https://marketplace.visualstudio.com/items?itemName=GiovanySosa.pmmp-studio), a VS Code extension for PocketMine-MP plugin development.
 
 ## Licensing information
 This project is licensed under **LGPL-3.0**, inherited unchanged from the upstream project. Please see the [LICENSE](/LICENSE) file for details.
