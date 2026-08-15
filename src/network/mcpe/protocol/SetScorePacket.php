@@ -117,11 +117,13 @@ class SetScorePacket extends DataPacket implements ClientboundPacket{
 				CommonTypes::putString($out, self::WIRE_TYPE_NAMES_1_26_40[$wireType]);
 				VarInt::writeSignedLong($out, $entry->scoreboardId);
 				if($wireType === ScorePacketEntry::TYPE_INVALID){
-					$hasObjective = $entry->objectiveName !== "";
-					CommonTypes::putBool($out, $hasObjective);
-					if($hasObjective){
-						CommonTypes::putString($out, $entry->objectiveName);
-					}
+					//1.26.44 added an extra bool inside this optional's "present" branch that 1.26.40/42
+					//doesn't have and can't be detected apart from at the protocol-id level (same 2168
+					//number for all three) - sidestep the ambiguity entirely by never sending an
+					//objective name on a removal entry. It's not needed to remove by scoreboardId, and
+					//omitting it (always false here) produces the same one-byte encoding both versions
+					//already agree on, instead of guessing which of two incompatible formats to use.
+					CommonTypes::putBool($out, false);
 				}else{
 					CommonTypes::putString($out, $entry->objectiveName !== "" ? $entry->objectiveName : " ");
 					LE::writeSignedInt($out, $entry->score);

@@ -2,6 +2,15 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.3
+
+### The real fix for 1.26.44 disconnects: `SetScorePacket`
+
+v5.44.2-syntax.2's `buildPlatform` fix turned out to be necessary but not sufficient - 1.26.44 clients kept disconnecting a second or two into any sustained movement (teleporting, walking near an active event waypoint), independent of login. Root cause, found by diffing CloudburstMC/Protocol's Java implementation (they shipped a same-day `Bedrock_v2168_hotfix4` codec revision) against this fork's `SetScorePacket`:
+
+- **`SetScorePacket` `TYPE_INVALID` (removal) entries**: 1.26.44 added an extra boolean field inside the "objective name present" branch of this entry type that 1.26.40/42 doesn't have - and there's no way to tell which format a given 2168 connection expects apart from the client's exact point version, which isn't observable at the protocol-id level. Any removal entry sent with a non-empty objective name (which a scoreboard/HUD refresh cycle does constantly, multiple times a second) desynced the following bytes for a 1.26.44 client specifically, corrupting decode from that point on until the client gave up and disconnected - explaining both the delayed, variable-length timing and why it kept recurring after the login-specific `buildPlatform` fix. Fixed in `src/network/mcpe/protocol/SetScorePacket.php` by never sending an objective name on a removal entry at all - it isn't needed to remove by `scoreboardId`, and omitting it produces the same one-byte encoding both format versions already agree on, sidestepping the ambiguity entirely instead of guessing which of two incompatible formats to use.
+- The earlier BetterAltay cross-check (v5.44.2-syntax.2) had concluded this fork already matched BetterAltay's `SetScorePacket` fix - that was only true for the empty-string-guard part; the additional hotfix4-era boolean was missed because it postdated the commit that check compared against.
+
 ## v5.44.2-syntax.2
 
 ### Bedrock 1.26.44 support (still protocol 2168)
