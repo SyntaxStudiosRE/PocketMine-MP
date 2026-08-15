@@ -2,6 +2,19 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.2
+
+### Bedrock 1.26.44 support (still protocol 2168)
+
+Bedrock 1.26.44 shipped with no protocol version bump - it's still 2168, same as 1.26.40/1.26.42 - but real client-side behavior changed anyway, causing 1.26.44 clients specifically to disconnect a few seconds after a successful login. Root cause:
+
+- **`AddPlayerPacket`/`PlayerListEntry.buildPlatform`**: defaulted to `DeviceOS::UNKNOWN` (`-1`) everywhere a player is introduced to another client, as a deliberate privacy choice (never reveal a player's real device). 1.26.44 appears to validate this field more strictly in a client-side subsystem that runs a few seconds after spawn rather than at packet-decode time, and disconnects on an unknown value. Changed the default to `DeviceOS::ANDROID` - a generic, non-identifying placeholder that's still a *valid* value - in `src/entity/Human.php`, `src/network/mcpe/protocol/AddPlayerPacket.php`, and `src/network/mcpe/protocol/types/PlayerListEntry.php`. Matches the equivalent fix independently shipped by BetterAltay for the same release.
+- Cross-checked BetterAltay's own 1.26.44 and 1.26.30 protocol support commits against this fork afterward - confirmed no other gaps for either version range. Their only other 1.26.44-era fix (`SetScorePacket`'s extra leading bool + empty-string guard on TYPE_REMOVE entries) was already present here from earlier work.
+
+### Other fixes
+
+- **`SubChunkRequestPacket::encodePayload()`**: the entry-count field's VarInt-vs-fixed-width switch for protocol >= 1001 was backwards relative to `decodePayload()` (read one way, wrote the other). No practical impact - this packet is server-bound only, so the server never calls `encodePayload()` on it - but corrected for correctness/symmetry.
+
 ## v5.44.2-syntax.1
 
 First public release. Everything below was built on top of NetherGamesMC's multi-protocol base after `pmmp/PocketMine-MP` was archived upstream (2026-07-09) and Bedrock 1.26.40 shipped with no multi-protocol fork supporting it yet.

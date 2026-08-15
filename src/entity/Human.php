@@ -558,7 +558,13 @@ class Human extends Living implements ProjectileSource, InventoryHolder{
 			])),
 			[], //TODO: entity links
 			"", //device ID (we intentionally don't send this - secvuln)
-			DeviceOS::UNKNOWN //we intentionally don't send this (secvuln)
+			//protocol >= 1.26.44: a real client-sent buildPlatform (as opposed to this
+			//intentionally-generic placeholder) is REQUIRED - some client-side subsystem
+			//that reads this field a few seconds after spawn (not at decode time) treats
+			//DeviceOS::UNKNOWN as invalid and disconnects. ANDROID is a safe, valid,
+			//non-identifying placeholder - it doesn't leak the real device like sending
+			//the actual value would, but it's no longer "unknown" to the client.
+			DeviceOS::ANDROID
 		));
 
 		//TODO: Hack for MCPE 1.2.13: DATA_NAMETAG is useless in AddPlayerPacket, so it has to be sent separately
