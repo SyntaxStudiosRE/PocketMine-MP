@@ -2,6 +2,17 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.4
+
+### Self-hosted update checker
+
+PMMP's built-in update checker defaulted to `update.pmmp.io`, which has no knowledge of this fork's releases - anyone running it with the shipped default config would never be notified a new `syntax.X` build exists.
+
+- Published a static JSON API matching the engine's expected `UpdateInfo` schema via GitHub Pages (`docs/api/`, built from the `stable` branch). The release workflow now regenerates it with the new tag's info on every release.
+- Pointed `resources/pocketmine.yml`'s `auto-updater.host` at that endpoint instead.
+- The release workflow was never passing a `--build` number to `server-phar.php` - it silently defaulted to `0` on every prior release, and the update checker requires `build > 0` before it'll even compare versions against the API response, so the whole mechanism could never have worked regardless of the host it pointed at. Now passes the workflow run number as the build.
+- Verified end-to-end live: a build older than the published API build correctly shows the "your version is out of date" console warning with working details/download links; a build at or above it correctly shows nothing.
+
 ## v5.44.2-syntax.3
 
 ### The real fix for 1.26.44 disconnects: `SetScorePacket`
