@@ -8,6 +8,10 @@ on:
 
 env:
   PHP_VERSION: "8.3"
+  # Bedrock protocol ranges natively supported (see CHANGELOG.md for detail) - update
+  # this whenever a new protocol range is added, it drives the release title/body.
+  SUPPORTED_MCPE_RANGES: "1.21.111 · 1.26.20-33 · 1.26.40-44"
+  SUPPORTED_MCPE_LATEST: "1.26.44"
 
 jobs:
   release:
@@ -62,10 +66,12 @@ jobs:
           artifacts: "PocketMine-MP.phar,start.sh,start.cmd,start.ps1,${{ steps.package.outputs.bundle_name }}.tar.gz"
           commit: ${{ github.sha }}
           draft: true
-          name: "SyntaxStudios PocketMine-MP ${{ github.ref_name }}"
+          name: "SyntaxStudios PocketMine-MP ${{ github.ref_name }} (Bedrock ${{ env.SUPPORTED_MCPE_RANGES }})"
           tag: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
+            **Supports Bedrock ${{ env.SUPPORTED_MCPE_RANGES }}** (same running server, no translation proxy).
+
             See [CHANGELOG.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for what's new.
 
             :information_source: `PocketMine-MP.phar` needs a PMMP-compiled PHP build to run, not stock PHP. Download the recommended binary [here](https://github.com/pmmp/PHP-Binaries/releases/tag/pm5-php-${{ env.PHP_VERSION }}-latest).
@@ -84,7 +90,7 @@ jobs:
             "is_dev": true,
             "channel": "beta",
             "git_commit": "${{ github.sha }}",
-            "mcpe_version": "1.26.44",
+            "mcpe_version": "${{ env.SUPPORTED_MCPE_LATEST }}",
             "build": ${{ github.run_number }},
             "date": $(date -u +%s),
             "details_url": "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}",
