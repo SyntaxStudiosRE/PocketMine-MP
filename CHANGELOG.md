@@ -2,6 +2,15 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.6
+
+### Default/Persona skins no longer disconnect on protocol 2168
+
+Previously, a Bedrock 1.26.40+ (protocol 2168) client logging in with a default/Persona skin was rejected outright, since the client self-disconnects a few seconds after spawning with that skin otherwise (see v5.44.2-syntax.2/.3's investigation). Confirmed live with real 2168 clients:
+
+- **`LoginPacketHandler`**: instead of disconnecting, the login now substitutes a known-safe blank skin (`Standard_Custom`, the same one `AimTrapEntity`/`WayPoint` already use) before it reaches `PlayerInfo`/spawn, so nothing the server sends ever carries the flagged skin identity. The player joins normally with a plain fallback appearance instead of being kicked. The substitute skinId must stay dot-less - a dotted variant, tried to also satisfy `TypeConverter::isUnsafeSkinForPlayerList()`'s "looks like a real custom skin" heuristic, reintroduced the same self-disconnect.
+- `isUnsafeSkinForPlayerList()`'s existing behavior (omitting these players from other 2168 viewers' `PlayerListPacket`) is unchanged and still required - it isn't just a third-party-viewer mitigation, it's load-bearing for this fix too (disabling it, even for a single player with nobody else online, reproduced the self-disconnect via their own list self-entry). Two default-skin players can join and see each other in-world at the same time; neither appears in the other's tab list or gets native "@" chat-mention autocomplete for the other - an accepted, pre-existing tradeoff this change doesn't touch. A server-side chat mention plugin that doesn't depend on the tab list still works if the full username is typed manually.
+
 ## v5.44.2-syntax.5
 
 ### Harden packet decode error handling
