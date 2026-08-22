@@ -569,6 +569,18 @@ class NetworkSession{
 					$packet->decode($stream, $this->getProtocolId());
 				}catch(PacketDecodeException $e){
 					throw PacketHandlingException::wrap($e);
+				}catch(\Throwable $e){
+					//2026-08-21: a malformed field combination specific to an unusual protocol/version
+					//pairing (e.g. an old protocol client interacting with a feature only exercised by
+					//newer clients) can throw something other than PacketDecodeException from inside a
+					//packet's decode() - a TypeError from a narrower type-check deep in a rarely-hit
+					//protocol branch, for example. Left uncaught here, this propagated past the single
+					//PacketDecodeException catch below and out of this method entirely, which is a much
+					//less controlled failure mode than the one the codebase already has a working,
+					//tested path for (wrap -> PacketHandlingException -> caller disconnects just this
+					//session). Route it through the same path instead of letting it escape uncaught.
+					$this->logger->debug("Unexpected " . get_class($e) . " decoding " . $packet->getName() . ": " . $e->getMessage());
+					throw PacketHandlingException::wrap($e);
 				}
 				if($stream->getUnreadLength() > 0){
 					$remains = substr($stream->getData(), $stream->getOffset());
