@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace pocketmine\network\mcpe\handler;
 
 use pocketmine\entity\InvalidSkinException;
+use pocketmine\entity\Skin;
 use pocketmine\event\player\PlayerPreLoginEvent;
 use pocketmine\lang\KnownTranslationFactory;
 use pocketmine\lang\Translatable;
@@ -271,27 +272,42 @@ class LoginPacketHandler extends PacketHandler{
 		//975/1001 case was a false positive and the 2168 case is a genuine, separate,
 		//client-side restriction. Do not re-extend this below PROTOCOL_1_26_40 without new
 		//live evidence.
+		//2026-08-22: instead of disconnecting, substitute a known-safe blank skin before it
+		//ever reaches the rest of the login/spawn pipeline, so this client never has a
+		//Persona/default-prefixed skinId in anything the server itself constructs from here
+		//on. Confirmed live: this alone stops the client's own self-disconnect - but ONLY
+		//with this EXACT dot-less skinId. Tried adding a "." suffix (thinking it would also
+		//satisfy TypeConverter::isUnsafeSkinForPlayerList()'s "dot = real custom skin"
+		//heuristic, so other 2168 viewers wouldn't have this player hidden from their
+		//PlayerListPacket) and that alone brought the self-disconnect straight back (~4.5s
+		//after spawn, same timing as the original bug) with literally the only other change
+		//being the added dot - so the client's login self-check reacts to the dot itself, not
+		//just the two known Persona/c18e65aa patterns. Do not add a "." here.
+		//
+		//Do NOT "fix" isUnsafeSkinForPlayerList() to stop hiding this player from other 2168
+		//viewers either - its own docblock already says this exact blank skin (the one
+		//AimTrapEntity/WayPoint use) was tried there on 2026-08-14 and still crashed the
+		//viewer, along with every other synthetic replacement tested. That hide-from-player-
+		//list behavior isn't a gap, it's the only known-safe mitigation for a separate,
+		//already-exhausted third-party-viewer crash. This fix only addresses the LOGIN
+		//self-disconnect; a default-skin player staying invisible to other 2168 viewers'
+		//player lists is an accepted, pre-existing, unrelated tradeoff.
 		if(
 			($clientData->PersonaSkin || str_starts_with($clientData->SkinId, "c18e65aa-7b21-4637-9b63-8ad63622ef01."))
 			&& $this->session->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40
 		){
-			$this->session->disconnectWithError(
-				reason: "Default/random skin not supported on this protocol version",
-				disconnectScreenMessage: "Please set a custom skin before joining (default/random characters aren't supported yet on your Minecraft version)."
-			);
+			$skin = new Skin('Standard_Custom', str_repeat("\x00", 8192), '', 'geometry.humanoid.customSlim');
+		}else{
+			try{
+				$skin = $this->session->getTypeConverter()->getSkinAdapter()->fromSkinData(ClientDataToSkinDataHelper::fromClientData($clientData));
+			}catch(\InvalidArgumentException | InvalidSkinException $e){
+				$this->session->disconnectWithError(
+					reason: "Invalid skin: " . $e->getMessage(),
+					disconnectScreenMessage: KnownTranslationFactory::disconnectionScreen_invalidSkin()
+				);
 
-			return null;
-		}
-
-		try{
-			$skin = $this->session->getTypeConverter()->getSkinAdapter()->fromSkinData(ClientDataToSkinDataHelper::fromClientData($clientData));
-		}catch(\InvalidArgumentException | InvalidSkinException $e){
-			$this->session->disconnectWithError(
-				reason: "Invalid skin: " . $e->getMessage(),
-				disconnectScreenMessage: KnownTranslationFactory::disconnectionScreen_invalidSkin()
-			);
-
-			return null;
+				return null;
+			}
 		}
 
 		if($xuid !== ""){

@@ -165,6 +165,18 @@ class TypeConverter{
 	 * send ANY skin for them.
 	 */
 	public function isUnsafeSkinForPlayerList(Skin $skin) : bool{
+		//2026-08-22: briefly disabled to test whether the buildPlatform fix (2026-08-15)
+		//incidentally also resolved the third-party-viewer crash this exists to work around -
+		//it did not. Live result: a lone default-skin 2168 player, with nobody else even
+		//online, self-disconnected ~4.6s after spawn the instant this stopped hiding them -
+		//same timing as the original login crash. This function applies to EVERY entry being
+		//built for a viewer's PlayerListPacket, including a session's own self-entry (a
+		//player is also a "viewer" of themselves) - with this enabled, a default-skin player
+		//never got their own self-entry either, which incidentally meant they were never
+		//exposed to whatever about that self-entry actually crashes the client. Keep enabled;
+		//it's load-bearing for the LoginPacketHandler skin-substitution fix too, not just for
+		//protecting third parties.
+		//
 		//"c18e65aa-7b21-4637-9b63-8ad63622ef01." is Mojang's built-in "Classic Skin Pack"
 		//content ID (constant across installs) used to auto-assign a default identity
 		//(Steve/Alex/Ari/Noor/Efe/Kai/Zuri/Sunny/Makena) to clients with no custom skin set -
