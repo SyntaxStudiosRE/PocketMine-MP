@@ -2,6 +2,15 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.5
+
+### Harden packet decode error handling
+
+Investigating reports of several players getting disconnected at once whenever a specific player on an old protocol (1.20.62, protocol 649) joined - distinct from, and outside the protocol-2168-only scope of, the 1.26.44 fixes below.
+
+- **`NetworkSession::handleDataPacket()`**: the packet decode step only caught `PacketDecodeException`. An unusual protocol/version combination hitting a rarely-exercised branch can make `decode()` throw something else entirely (e.g. a `TypeError` from a narrower type check) - left uncaught, that escaped past this method instead of going through the existing, already-correct `wrap() -> PacketHandlingException -> disconnect just this session` path, a much less controlled failure mode. Widened the catch to also catch `\Throwable`, log it, and route it through that same existing path. BetterAltay shipped the identical fix (same failure mode, same fix shape) the same day in their `PlayerNetworkSessionAdapter.php`.
+- Not yet confirmed whether this is the full fix for the reported mass-disconnects - deployed as a hardening measure while the exact triggering packet/protocol combination is still being tracked down.
+
 ## v5.44.2-syntax.4
 
 ### Self-hosted update checker
