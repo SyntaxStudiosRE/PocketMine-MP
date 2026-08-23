@@ -2,6 +2,12 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.7
+
+### Fixed the default-skin fallback rendering invisible on some devices
+
+v5.44.2-syntax.6's fallback skin used all-zero pixel bytes (fully transparent). That rendered as a "Steve" fallback on the two accounts it was tested with, but a real production player on a different device rendered the same texture as literally invisible instead - cosmetic only (combat/hit detection was unaffected), but confusing and inconsistent across clients. `LoginPacketHandler` now uses a solid opaque gray for the fallback skin instead, so no client's undefined behavior for a fully-transparent texture is relied on.
+
 ## v5.44.2-syntax.6
 
 ### Default/Persona skins no longer disconnect on protocol 2168
