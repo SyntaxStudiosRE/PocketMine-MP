@@ -296,7 +296,13 @@ class LoginPacketHandler extends PacketHandler{
 			($clientData->PersonaSkin || str_starts_with($clientData->SkinId, "c18e65aa-7b21-4637-9b63-8ad63622ef01."))
 			&& $this->session->getProtocolId() >= ProtocolInfo::PROTOCOL_1_26_40
 		){
-			$skin = new Skin('Standard_Custom', str_repeat("\x00", 8192), '', 'geometry.humanoid.customSlim');
+			//2026-08-23: the pixel data must be fully opaque. All-zero bytes (alpha=0,
+			//fully transparent) worked fine on the two accounts tested live 2026-08-22 -
+			//both fell back to rendering as "Steve" - but a production player (Fazkhhh)
+			//on a different device rendered the same all-zero texture as literally
+			//invisible instead. A solid opaque gray avoids relying on any client's
+			//undefined fallback behavior for a fully-transparent texture.
+			$skin = new Skin('Standard_Custom', str_repeat("\x7f\x7f\x7f\xff", 2048), '', 'geometry.humanoid.customSlim');
 		}else{
 			try{
 				$skin = $this->session->getTypeConverter()->getSkinAdapter()->fromSkinData(ClientDataToSkinDataHelper::fromClientData($clientData));
