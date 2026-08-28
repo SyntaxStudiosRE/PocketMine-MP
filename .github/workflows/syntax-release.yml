@@ -10,8 +10,8 @@ env:
   PHP_VERSION: "8.3"
   # Bedrock protocol ranges natively supported (see CHANGELOG.md for detail) - update
   # this whenever a new protocol range is added, it drives the release title/body.
-  SUPPORTED_MCPE_RANGES: "1.21.111 · 1.26.20-33 · 1.26.40-44"
-  SUPPORTED_MCPE_LATEST: "1.26.44"
+  SUPPORTED_MCPE_RANGES: "1.21.111 · 1.26.20-33 · 1.26.40-45"
+  SUPPORTED_MCPE_LATEST: "1.26.45"
 
 jobs:
   release:

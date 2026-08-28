@@ -2,6 +2,16 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.8
+
+### Bedrock 1.26.45 support (protocol 2169)
+
+Mojang bumped the protocol number for the first time since 1.26.40 - previously every 1.26.40/42/44 point release kept the same number (2168) despite real client-side behavior changes, which is what most of this fork's 2168-era investigation was about. CloudburstMC/Protocol's `Bedrock_v2169` codec confirms 1.26.45 is a pure protocol-number/version-string bump over `Bedrock_v2168` with zero serializer changes, so this fork reuses every existing 2168 codepath and data table entry instead of porting anything new:
+
+- Added `ProtocolInfo::PROTOCOL_1_26_45 = 2169` to `ACCEPTED_PROTOCOL`. Most of the codebase already branches on `protocol >= PROTOCOL_1_26_40`, so 2169 falls into those automatically.
+- The handful of protocol-keyed exact-match tables needed an explicit new entry pointing at the same 2168 data: `BlockTranslator`/`ItemTagToIdMap`/`ItemTypeDictionaryFromDataHelper`'s `PATHS`, and `ItemTranslator::getItemSchemaId()`'s `match` (which would otherwise throw `AssumptionFailedError` for an unlisted protocol).
+- Tested live with a real 1.26.45 client before release.
+
 ## v5.44.2-syntax.7
 
 ### Fixed the default-skin fallback rendering invisible on some devices
