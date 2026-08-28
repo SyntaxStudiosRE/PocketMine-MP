@@ -45,6 +45,9 @@ use function str_replace;
 final class ItemTypeDictionaryFromDataHelper{
 
 	private const PATHS = [
+		//1.26.45 (protocol 2169) is a pure protocol-number bump over 2168 - reuse the same
+		//data file, see ProtocolInfo::PROTOCOL_1_26_45.
+		ProtocolInfo::PROTOCOL_1_26_45 => "-1.26.40",
 		ProtocolInfo::PROTOCOL_1_26_40 => "-1.26.40",
 		ProtocolInfo::CURRENT_PROTOCOL => "",
 		ProtocolInfo::PROTOCOL_1_26_20 => "-1.26.20",

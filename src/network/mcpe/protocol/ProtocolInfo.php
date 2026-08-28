@@ -63,6 +63,7 @@ final class ProtocolInfo{
 		self::PROTOCOL_1_26_20,
 		self::CURRENT_PROTOCOL,
 		self::PROTOCOL_1_26_40,
+		self::PROTOCOL_1_26_45,
 	];
 
 	/** Display version shown in the server logs. This should match the version on the game's home screen. */
@@ -70,6 +71,10 @@ final class ProtocolInfo{
 	/** Version sent on the network for client side compatibility checks. This may differ from the display version. */
 	public const MINECRAFT_VERSION_NETWORK = '1.26.30';
 
+	//2026-08-24: Bedrock 1.26.45 - CloudburstMC/Protocol's Bedrock_v2169 is a pure passthrough
+	//of Bedrock_v2168 (protocolVersion/minecraftVersion bumped, zero serializer changes), so
+	//this reuses every 2168 codepath/data table entry rather than needing new ones.
+	public const PROTOCOL_1_26_45 = 2169;
 	public const PROTOCOL_1_26_40 = 2168;
 	public const PROTOCOL_1_26_30 = 1001;
 	public const PROTOCOL_1_26_20 = 975;

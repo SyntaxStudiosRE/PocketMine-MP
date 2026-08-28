@@ -137,6 +137,8 @@ final class ItemTranslator{
 
 	public static function getItemSchemaId(int $protocolId) : int{
 		return match($protocolId){
+			//1.26.45 (protocol 2169) is a pure protocol-number bump over 2168 - same schema.
+			ProtocolInfo::PROTOCOL_1_26_45,
 			ProtocolInfo::PROTOCOL_1_26_40 => 271,
 
 			ProtocolInfo::PROTOCOL_1_26_30,

@@ -42,6 +42,12 @@ final class BlockTranslator{
 	public const BLOCK_STATE_META_MAP_PATH = 1;
 
 	private const PATHS = [
+		//1.26.45 (protocol 2169) is a pure protocol-number bump over 1.26.40-44 (2168) -
+		//reuse the same data files, see ProtocolInfo::PROTOCOL_1_26_45.
+		ProtocolInfo::PROTOCOL_1_26_45 => [
+			self::CANONICAL_BLOCK_STATES_PATH => '-1.26.40',
+			self::BLOCK_STATE_META_MAP_PATH => '-1.26.40',
+		],
 		ProtocolInfo::PROTOCOL_1_26_40 => [
 			self::CANONICAL_BLOCK_STATES_PATH => '-1.26.40',
 			self::BLOCK_STATE_META_MAP_PATH => '-1.26.40',

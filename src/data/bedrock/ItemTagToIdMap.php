@@ -45,6 +45,9 @@ final class ItemTagToIdMap{
 	use ProtocolSingletonTrait;
 
 	private const PATHS = [
+		//1.26.45 (protocol 2169) is a pure protocol-number bump over 2168 - reuse the same
+		//data file, see ProtocolInfo::PROTOCOL_1_26_45.
+		ProtocolInfo::PROTOCOL_1_26_45 => "",
 		ProtocolInfo::PROTOCOL_1_26_40 => "",
 		ProtocolInfo::CURRENT_PROTOCOL => "",
 		ProtocolInfo::PROTOCOL_1_26_20 => "",
