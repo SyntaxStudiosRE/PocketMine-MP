@@ -151,18 +151,25 @@ class TypeConverter{
 	}
 
 	/**
-	 * True if this skin looks like an unmodified default skin (bare UUID skinId with no
-	 * ".customname" suffix, which is what a default-skin real player's skinId looks like
-	 * server-side) shown to a protocol 2168+ viewer. No synthetic replacement SkinData
-	 * we've tried (several: blank/opaque image, matching geometry name to arm size, the
-	 * same blank skin AimTrapEntity/WayPoint use, a real player-shaped "uuid.name" skinId
-	 * paired with solid-gray non-zero pixel data - confirmed live 2026-08-14, still crashes)
-	 * has avoided disconnecting the viewer - every variant crashes exactly like the real
-	 * thing would, including full replays of the real decoded SkinData (id, pixels, persona
-	 * flag/pieces all genuine - see commit 556d475d5). Both "id shape" and "pixel content"
-	 * have now been independently varied and ruled out as the trigger. Safest known fix is to
-	 * omit this player from the PlayerListPacket for this viewer entirely rather than
-	 * send ANY skin for them.
+	 * True if this skin is Bedrock's Persona system or the classic default skin pack
+	 * (Steve/Alex/Ari/Noor/Efe/Kai/Zuri/Sunny/Makena), shown to a protocol 2168+ viewer. No
+	 * synthetic replacement SkinData we've tried (several: blank/opaque image, matching
+	 * geometry name to arm size, the same blank skin AimTrapEntity/WayPoint use, a real
+	 * player-shaped "uuid.name" skinId paired with solid-gray non-zero pixel data - confirmed
+	 * live 2026-08-14, still crashes) has avoided disconnecting the viewer - every variant
+	 * crashes exactly like the real thing would, including full replays of the real decoded
+	 * SkinData (id, pixels, persona flag/pieces all genuine - see commit 556d475d5). Safest
+	 * known fix is to omit this player from the PlayerListPacket for this viewer entirely
+	 * rather than send ANY skin for them.
+	 *
+	 * 2026-09-01: this used to guess "is this a default skin" from the shape of the skinId
+	 * string (no "." = default). That heuristic was wrong: a production packet capture
+	 * (2026-08-10, /tmp/prod_skin_debug.txt) showed over half of real, non-Persona, non-default
+	 * custom skins also have a dot-less skinId - the dot has nothing to do with whether a skin
+	 * is custom, so those players were being incorrectly hidden from every 2168+ viewer's
+	 * tablist and native "@" mention autocomplete. Now reads Skin::isPersonaOrDefault(), an
+	 * explicit flag set where the skin is actually decoded (LegacySkinAdapter::fromSkinData(),
+	 * LoginPacketHandler's login-time substitution) instead of re-guessing from the ID shape.
 	 */
 	public function isUnsafeSkinForPlayerList(Skin $skin) : bool{
 		//2026-08-22: briefly disabled to test whether the buildPlatform fix (2026-08-15)
@@ -177,13 +184,6 @@ class TypeConverter{
 		//it's load-bearing for the LoginPacketHandler skin-substitution fix too, not just for
 		//protecting third parties.
 		//
-		//"c18e65aa-7b21-4637-9b63-8ad63622ef01." is Mojang's built-in "Classic Skin Pack"
-		//content ID (constant across installs) used to auto-assign a default identity
-		//(Steve/Alex/Ari/Noor/Efe/Kai/Zuri/Sunny/Makena) to clients with no custom skin set -
-		//confirmed via packet trace to crash 2168 viewers the same way a Persona (modern
-		//random-character) skin does, just via an older mechanism that doesn't set
-		//PersonaSkin=true and does contain a "." (so the no-dot heuristic below misses it).
-		//
 		//IMPORTANT: this is 2168-ONLY, same as the login-time rejection in
 		//LoginPacketHandler - see the long comment there. This was briefly extended down to
 		//PROTOCOL_1_26_20 (975/1001) on 2026-08-10 after what looked like the same crash
@@ -191,10 +191,7 @@ class TypeConverter{
 		//bug (now fixed - see BedrockProtocol commits be47df5/5f914f1). Confirmed live
 		//2026-08-13 with the encoding bug fixed: a default/Persona skin causes zero issue on
 		//975/1001 with this check fully disabled, so it must stay 2168-only.
-		return $this->protocolId >= ProtocolInfo::PROTOCOL_1_26_40 && (
-			!str_contains($skin->getSkinId(), ".")
-			|| str_starts_with($skin->getSkinId(), "c18e65aa-7b21-4637-9b63-8ad63622ef01.")
-		);
+		return $this->protocolId >= ProtocolInfo::PROTOCOL_1_26_40 && $skin->isPersonaOrDefault();
 	}
 
 	/**

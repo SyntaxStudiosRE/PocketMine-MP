@@ -33,6 +33,7 @@ use function json_decode;
 use function json_encode;
 use function random_bytes;
 use function str_repeat;
+use function str_starts_with;
 use const JSON_THROW_ON_ERROR;
 
 class LegacySkinAdapter implements SkinAdapter{
@@ -55,8 +56,14 @@ class LegacySkinAdapter implements SkinAdapter{
 	}
 
 	public function fromSkinData(SkinData $data) : Skin{
+		//"c18e65aa-7b21-4637-9b63-8ad63622ef01." is Mojang's built-in "Classic Skin Pack" content
+		//ID (constant across installs), used for the classic default identities (Steve/Alex/etc) -
+		//it doesn't set PersonaSkin=true, so it needs its own check here (same pattern as
+		//TypeConverter::isUnsafeSkinForPlayerList()/LoginPacketHandler's login-time substitution).
+		$isPersonaOrDefault = $data->isPersona() || str_starts_with($data->getSkinId(), "c18e65aa-7b21-4637-9b63-8ad63622ef01.");
+
 		if($data->isPersona()){
-			return new Skin("Standard_Custom", str_repeat(random_bytes(3) . "\xff", 4096));
+			return new Skin("Standard_Custom", str_repeat(random_bytes(3) . "\xff", 4096), personaOrDefault: true);
 		}
 
 		$capeData = $data->isPersonaCapeOnClassic() ? "" : $data->getCapeImage()->getData();
@@ -68,6 +75,6 @@ class LegacySkinAdapter implements SkinAdapter{
 			throw new InvalidSkinException("Missing geometry name field");
 		}
 
-		return new Skin($data->getSkinId(), $data->getSkinImage()->getData(), $capeData, $geometryName, $data->getGeometryData());
+		return new Skin($data->getSkinId(), $data->getSkinImage()->getData(), $capeData, $geometryName, $data->getGeometryData(), $isPersonaOrDefault);
 	}
 }

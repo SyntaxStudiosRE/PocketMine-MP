@@ -2,6 +2,17 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.9
+
+### Fixed real custom-skin players going missing from 2168+ viewers' tab list and "@" mention autocomplete
+
+`TypeConverter::isUnsafeSkinForPlayerList()` (added in v5.44.2-syntax.6 to stop default/Persona skins from crashing protocol 2168+ viewers) decided "is this a default skin" by guessing from the shape of the skin ID string - no `.` in the ID was treated as "unmodified default". A production packet capture showed this was wrong more often than not: well over half of real, non-Persona, non-default custom skins also have a dot-less skin ID server-side, so any 2168+ (1.26.40-1.26.45) viewer was silently missing a large chunk of genuinely custom-skinned players from their tab list and native "@" chat-mention autocomplete, while everything else about those players worked normally. Confirmed live in production before this fix (a 1.26.45 client not seeing players on lower point releases in its tab list) and confirmed fixed in test (every connected player, across protocols, now appears).
+
+- **`Skin`**: gained an explicit `personaOrDefault` flag (`isPersonaOrDefault()`), set at the point a skin is actually decoded from the client's real data, instead of being re-guessed later from the ID's shape.
+- **`LegacySkinAdapter::fromSkinData()`**: sets the flag from the real `SkinData::isPersona()` signal (plus the classic default skin pack's known `c18e65aa-...` ID prefix), for both the Persona placeholder skin and normal custom skins.
+- **`LoginPacketHandler`**: sets the flag on the login-time placeholder skin it substitutes for a default/Persona 2168+ client (see v5.44.2-syntax.6) - unchanged behavior, just now tagged correctly instead of relying on its dot-less ID shape alone.
+- **`TypeConverter::isUnsafeSkinForPlayerList()`**: now reads `Skin::isPersonaOrDefault()` directly instead of inspecting the ID string. Still 2168+-only, still hides default/Persona players from other 2168+ viewers' tab lists the same as before (that mitigation is unrelated and unchanged) - this only removes the false positives that were hiding real custom skins too.
+
 ## v5.44.2-syntax.8
 
 ### Bedrock 1.26.45 support (protocol 2169)

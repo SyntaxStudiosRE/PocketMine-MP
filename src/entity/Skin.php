@@ -43,6 +43,7 @@ final class Skin{
 	private string $capeData;
 	private string $geometryName;
 	private string $geometryData;
+	private bool $personaOrDefault;
 
 	private static function checkLength(string $string, string $name, int $maxLength) : void{
 		if(strlen($string) > $maxLength){
@@ -50,7 +51,7 @@ final class Skin{
 		}
 	}
 
-	public function __construct(string $skinId, string $skinData, string $capeData = "", string $geometryName = "", string $geometryData = ""){
+	public function __construct(string $skinId, string $skinData, string $capeData = "", string $geometryName = "", string $geometryData = "", bool $personaOrDefault = false){
 		self::checkLength($skinId, "Skin ID", Limits::INT16_MAX);
 		self::checkLength($geometryName, "Geometry name", Limits::INT16_MAX);
 		self::checkLength($geometryData, "Geometry data", Limits::INT32_MAX);
@@ -88,6 +89,7 @@ final class Skin{
 		$this->capeData = $capeData;
 		$this->geometryName = $geometryName;
 		$this->geometryData = $geometryData;
+		$this->personaOrDefault = $personaOrDefault;
 	}
 
 	public function getSkinId() : string{
@@ -108,5 +110,14 @@ final class Skin{
 
 	public function getGeometryData() : string{
 		return $this->geometryData;
+	}
+
+	/**
+	 * True if this skin is (or stands in for) Bedrock's Persona system or the classic default
+	 * skin pack (Steve/Alex/etc), as determined at the point the skin was decoded from the
+	 * client's real SkinData/ClientData - not guessed from the shape of the skin ID string.
+	 */
+	public function isPersonaOrDefault() : bool{
+		return $this->personaOrDefault;
 	}
 }
