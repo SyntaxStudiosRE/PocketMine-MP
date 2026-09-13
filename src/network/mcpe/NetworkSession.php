@@ -491,6 +491,11 @@ class NetworkSession{
 					try{
 						$this->handleDataPacket($packet, $buffer);
 					}catch(PacketHandlingException $e){
+						//2026-09-13: visible regardless of debug.level, unlike unhandledPacketDebug()
+						//below - added while tracking a live mass-disconnect incident with no visible
+						//server-side errors at all (debug.level defaults to 1, silencing every ->debug()
+						//call in this whole file, including the one 8 lines down).
+						$this->logger->warning("Error processing " . $packet->getName() . " (protocol " . $this->getProtocolId() . "): " . $e->getMessage());
 						$this->unhandledPacketDebug($packet, $buffer, "Packet processing error");
 						throw PacketHandlingException::wrap($e, "Error processing " . $packet->getName());
 					}catch(FilterNoisyPacketException){
@@ -579,7 +584,18 @@ class NetworkSession{
 					//less controlled failure mode than the one the codebase already has a working,
 					//tested path for (wrap -> PacketHandlingException -> caller disconnects just this
 					//session). Route it through the same path instead of letting it escape uncaught.
-					$this->logger->debug("Unexpected " . get_class($e) . " decoding " . $packet->getName() . ": " . $e->getMessage());
+					//
+					//2026-09-13: bumped from debug() to warning() - debug.level defaults to 1 in
+					//production and this was firing silently the whole time, undetected, during a
+					//live mass-disconnect incident. warning() is never suppressed regardless of
+					//debug.level. Includes protocol id + full trace + raw bytes for triage without
+					//needing a live packet-trace capture.
+					$this->logger->warning(
+						"Unexpected " . get_class($e) . " decoding " . $packet->getName()
+						. " (protocol " . $this->getProtocolId() . "): " . $e->getMessage()
+						. "\n" . $e->getTraceAsString()
+						. "\nRaw bytes: " . bin2hex($buffer)
+					);
 					throw PacketHandlingException::wrap($e);
 				}
 				if($stream->getUnreadLength() > 0){
