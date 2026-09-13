@@ -2,6 +2,14 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.10
+
+### Packet processing errors are now visible regardless of debug.level
+
+While investigating a live mass-disconnect incident affecting mostly 1.26.45 clients (2026-09-13), found that both existing decode-error catches in `NetworkSession` only logged via `->debug()` - production's default `debug.level: 1` silently drops those entirely, so there was no way to tell whether they were even firing. Bumped both to `->warning()` (never suppressed), and added protocol id, full stack trace, and raw packet bytes to each, so the next occurrence can be triaged directly from the log instead of needing a live packet-trace capture.
+
+No behavior change - this is observability only.
+
 ## v5.44.2-syntax.9
 
 ### Fixed real custom-skin players going missing from 2168+ viewers' tab list and "@" mention autocomplete
