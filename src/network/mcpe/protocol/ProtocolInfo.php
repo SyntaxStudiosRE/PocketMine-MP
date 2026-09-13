@@ -34,7 +34,14 @@ final class ProtocolInfo{
 	/** Actual Minecraft: PE protocol version */
 	public const CURRENT_PROTOCOL = self::PROTOCOL_1_26_30;
 	public const ACCEPTED_PROTOCOL = [
-		self::PROTOCOL_1_20_0,
+		//2026-09-13: PROTOCOL_1_20_0 (589) deliberately excluded - live incident, confirmed by
+		//A/B testing (temp-banning the one real player on it stopped a mass-disconnect cycle
+		//hitting most of the rest of the playerbase, every time they were online). Root cause
+		//not yet isolated - AvailableCommandsPacket's `>= PROTOCOL_1_20_10` branch is the only
+		//code path this protocol alone exercises (every other still-accepted legacy protocol is
+		//>= 1_20_10), making it the prime suspect, but unconfirmed. Dropping the single oldest,
+		//least-used protocol stops the ongoing harm now instead of leaving it live during a
+		//multi-day root-cause investigation. Re-add only with a confirmed fix in hand.
 		self::PROTOCOL_1_20_10,
 		self::PROTOCOL_1_20_30,
 		self::PROTOCOL_1_20_40,
