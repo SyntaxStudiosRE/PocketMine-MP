@@ -2,6 +2,14 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.11
+
+### Dropped Bedrock 1.20.0 (protocol 589) support
+
+Live incident (2026-09-13): a real player on this protocol - the single oldest one this fork accepted - correlated with a repeating mass-disconnect cycle hitting most of the rest of the playerbase. Confirmed by A/B testing: temp-banning that one account stopped the cycle every time, across multiple clean observation windows, with no server-side exception firing anywhere (checked with v5.44.2-syntax.10's just-added visible logging) - the same "silent corruption, no exception" shape as the earlier SetScorePacket incident rather than an uncaught error.
+
+`AvailableCommandsPacket`'s `>= PROTOCOL_1_20_10` branch is the only code path this protocol alone exercised among currently-accepted protocols, making it the prime suspect, but the exact root cause is not yet isolated. Dropping the single oldest, least-used, and only implicated protocol stops the ongoing harm to everyone else immediately instead of leaving it live during what could be a multi-day investigation. Will be re-added only once a confirmed fix exists.
+
 ## v5.44.2-syntax.10
 
 ### Packet processing errors are now visible regardless of debug.level
