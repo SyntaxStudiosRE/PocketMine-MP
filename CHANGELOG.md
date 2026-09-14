@@ -2,6 +2,14 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.13
+
+### Protocol-correct skin geometry data and engine version
+
+Found while cross-referencing BakuTeam/Essential (another active NetherGamesMC-lineage multiversion fork) for anything we might have missed: `CommonTypes::putSkin()` always wrote a skin's raw `geometryData`/`geometryDataEngineVersion` regardless of the recipient's protocol. Protocol >= 1.26.40 needs the literal `"{}"` for an empty geometry document (a genuinely empty string doesn't resolve the referenced default geometry there) and expects `"0.0.0"` as the engine version marker; older protocols need the raw values instead. This affects every skin sent to every player, not just the default-skin substitution from v5.44.2-syntax.6-9 - may improve skin/player rendering more broadly on 2168+.
+
+Also fixed the same "always uses the default/1.26.30 protocol's block translator regardless of the actual viewer" bug in two HardcoreFactions plugin utilities (`FakeBlockUtils`, `GlassWalls`) used for `/f map` claim-corner pillars and claim-boundary glass walls - block-state network IDs differ between protocol ranges, so those fake blocks were silently invisible for viewers on a different protocol than 1.26.30 (2168/2169 in particular).
+
 ## v5.44.2-syntax.12
 
 ### Likely root cause of the protocol-589/685 mass-disconnect incident
