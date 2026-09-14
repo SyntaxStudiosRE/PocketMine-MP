@@ -606,6 +606,15 @@ class NetworkSession{
 				$decodeTimings->stopTiming();
 			}
 
+			//2026-09-13: mirrors the existing SEND/BROADCAST trace (sendDataPacketInternal(),
+			//StandardPacketBroadcaster) but for the INBOUND direction - that one only ever
+			//covered what we send, never what a traced client actually sent us. Added while
+			//hunting a live mass-disconnect correlated with one specific player joining, to see
+			//what THEIR client sends that might be malformed, not just what we send them.
+			if(self::traceTargetMatches($this->getDisplayName())){
+				file_put_contents("/tmp/pkt_trace.txt", microtime(true) . " RECV from='" . $this->getDisplayName() . "' proto=" . $this->getProtocolId() . " class=" . get_class($packet) . " " . self::summarizePacketForTrace($packet) . "\n", FILE_APPEND);
+			}
+
 			if(DataPacketReceiveEvent::hasHandlers()){
 				$ev = new DataPacketReceiveEvent($this, $packet);
 				$ev->call();

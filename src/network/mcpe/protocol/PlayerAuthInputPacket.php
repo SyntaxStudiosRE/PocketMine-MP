@@ -48,18 +48,18 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 	private BitSet $inputFlags;
 	private int $inputMode;
 	private int $playMode;
-	private int $interactionMode;
+	private int $interactionMode = 0;
 	private ?Vector3 $vrGazeDirection = null;
 	private Vector2 $interactRotation;
-	private int $tick;
+	private int $tick = 0;
 	private Vector3 $delta;
 	private ?ItemInteractionData $itemInteractionData = null;
 	private ?ItemStackRequest $itemStackRequest = null;
 	/** @var PlayerBlockAction[]|null */
 	private ?array $blockActions = null;
 	private ?PlayerAuthInputVehicleInfo $vehicleInfo = null;
-	private float $analogMoveVecX;
-	private float $analogMoveVecZ;
+	private float $analogMoveVecX = 0.0;
+	private float $analogMoveVecZ = 0.0;
 	private Vector3 $cameraOrientation;
 	private Vector2 $rawMove;
 
@@ -284,6 +284,18 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 			$this->decodePayload2168($in);
 			return;
 		}
+		//2026-09-13: interactRotation/cameraOrientation/rawMove are typed properties with no
+		//default, only conditionally assigned below (protocol >= 1_21_40, or VR playMode) -
+		//an untouched typed property throws Error the moment ANYTHING reads it, not at decode
+		//time, so this went undetected by every decode-time exception handler added so far.
+		//A real live client (protocol 685/589, mass-disconnecting other sessions) hit this.
+		//Cross-referenced against BakuTeam/Essential's NetherGamesMC fork (same lineage),
+		//which independently found and fixed the identical issue.
+		$this->interactRotation = new Vector2(0, 0);
+		$this->delta = new Vector3(0, 0, 0);
+		$this->cameraOrientation = new Vector3(0, 0, 0);
+		$this->rawMove = new Vector2(0, 0);
+
 		$this->pitch = LE::readFloat($in);
 		$this->yaw = LE::readFloat($in);
 		$this->position = CommonTypes::getVector3($in);
