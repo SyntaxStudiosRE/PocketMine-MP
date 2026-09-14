@@ -2,6 +2,16 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.12
+
+### Likely root cause of the protocol-589/685 mass-disconnect incident
+
+`PlayerAuthInputPacket`'s `interactRotation`/`cameraOrientation`/`rawMove` properties are typed with no default value, only ever assigned when `protocol >= PROTOCOL_1_21_40` (748) - or, for `interactRotation`, also when in VR play mode. Below that protocol, in normal play mode, they were left genuinely uninitialized - not null, untouched. PHP throws `Error` the instant *anything* reads an uninitialized typed property, which can happen anywhere later in a completely different call stack and tick than decode - explaining why v5.44.2-syntax.10's new visible decode-time logging never caught anything for this incident.
+
+Found by cross-referencing BakuTeam/Essential, another actively-maintained NetherGamesMC-lineage multiversion fork, which independently hit and fixed the identical bug in the identical properties. All three now get a real zero-value default set at the top of `decodePayload()` for protocols below 1.21.40, same as BakuTeam's fix.
+
+Confirmed live: a real player on protocol 685 (having been on 589, since dropped, before their client updated) correlated with a repeating mass-disconnect cycle hitting most of the rest of the playerbase. This is the first candidate root cause found that isn't a decode-time exception. Re-adding protocol 589 support will be considered once this is confirmed to hold up live.
+
 ## v5.44.2-syntax.11
 
 ### Dropped Bedrock 1.20.0 (protocol 589) support
