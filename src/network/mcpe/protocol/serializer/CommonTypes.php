@@ -258,8 +258,17 @@ final class CommonTypes{
 			}
 		}
 		self::putSkinImage($out, $skin->getCapeImage());
-		self::putString($out, $skin->getGeometryData());
-		self::putString($out, $skin->getGeometryDataEngineVersion());
+		//2026-09-14: cross-referenced against BakuTeam/Essential (another active NetherGamesMC-
+		//lineage multiversion fork) - protocol >= 1.26.40 needs the literal "{}" for an empty
+		//geometry document (an actually-empty string doesn't resolve the referenced default
+		//geometry there), while older protocols need the raw empty string instead. Sending the
+		//same value unconditionally to every protocol got one end of that wrong.
+		$geometryData = $skin->getGeometryData();
+		if($geometryData === "" && $hashedIds){
+			$geometryData = "{}";
+		}
+		self::putString($out, $geometryData);
+		self::putString($out, $hashedIds ? "0.0.0" : $skin->getGeometryDataEngineVersion());
 		self::putString($out, $skin->getAnimationData());
 		self::putString($out, $skin->getCapeId());
 		self::putString($out, $skin->getFullSkinId());
