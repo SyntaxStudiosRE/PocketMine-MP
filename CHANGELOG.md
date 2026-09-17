@@ -2,6 +2,14 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.15
+
+### Fixed a production crash on 1.26.40/1.26.45 (protocol 2168/2169) connect
+
+v5.44.2-syntax.14 crashed the whole server the moment a real 1.26.40-1.26.45 client connected (confirmed live in production shortly after that release): `BlockTranslator::loadFromProtocolId()` tried to read `canonical_block_states-1.26.40.nbt` from `vendor/nethergamesmc/bedrock-data/`, but that file only exists in a newer upstream commit than the one pinned in `composer.lock` - it had been added to this machine's `vendor/` directly back in August (when 1.26.40 support was first built) without ever bumping the lock file. This went unnoticed for over a month because every phar build before yesterday's release reused this same machine's already-populated `vendor/`; yesterday's CI release build was the first ever *genuinely fresh* `composer install`, which silently produced a phar missing the file.
+
+Same root cause and same fix as the previous release's 1.26.50 local data (see above) - just an older, previously-undiscovered instance of it. The three affected files (`canonical_block_states`/`block_state_meta_map`/`required_item_list`, all `-1.26.40`-suffixed) now live in `resources/vanilla-bedrock-data-overrides/` (renamed from `resources/vanilla-1.26.50-data/`, which now covers both gaps) alongside the 1.26.50 data. This time, verified before redeploying by loading every accepted protocol's `BlockTranslator`/`ItemTypeDictionaryFromDataHelper`/`ItemTagToIdMap` directly against the actual release-candidate build - the same code path that crashed - not just the newly-touched ones.
+
 ## v5.44.2-syntax.14
 
 ### Bedrock 1.26.50/1.26.51 support (protocol 2192/2193)
