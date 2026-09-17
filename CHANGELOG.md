@@ -2,6 +2,34 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.14
+
+### Bedrock 1.26.50/1.26.51 support (protocol 2192/2193)
+
+Native support for Bedrock 1.26.50 (protocol 2192) and 1.26.51 (protocol 2193, a pure renumbering of 2192 confirmed via CloudburstMC/Protocol's `f222c34bb` commit) alongside every previously-supported protocol - no translation proxy involved. No actively-maintained multiversion fork had 1.26.50 support yet at the time this was built, so block/item data came from `axolotl-pm/BedrockData`'s `bedrock-1.26.50` branch (the only complete, correctly-formatted source found) and cross-referencing `axolotl-pm/PocketMine-MP`/`BetterAltayBedrock/BetterAltay`'s own from-scratch ports.
+
+- **Root cause of the initial instant-disconnect on connect** ("Boat" error, no reason given, right as chunk data started sending): two new packets, `JigsawStructureDataPacket` and `VoxelShapesPacket`, must be sent before `StartGamePacket` in 1.26.50+ - this fork already had the packet classes and wiring from an earlier merge, just not the data-loading/sending glue. Fixed in `PreSpawnPacketHandler`/`StaticPacketCache`.
+- **The recurring "redundant dummy bool" pattern**: 1.26.30-1.26.45 wraps several optional fields in a double-bool (`getBool() && getBool()`, first one always true/redundant); 1.26.50+ drops the redundant bool, leaving a single real optional bool. Found and fixed in five places: `PlayerAuthInputPacket` (input flags, item interaction/stack-request/block-action sections), `InventoryTransactionPacket` (transaction type/data), `NetworkInventoryAction` (windowId/sourceFlags), and `ItemStackResponse` (top-level `hasContainers`). An initial fix for `NetworkInventoryAction` based on a nested-optional pattern cross-referenced from BakuTeam/Essential passed self-testing but broke placing blocks specifically (worked for breaking) - live proxy testing caught it, replaced with the simpler single-bool format.
+- **`UseItemTransactionData`**: gained a new `hand` field (unsigned varint) for 1.26.50+.
+- **`PlaySoundPacket`**: gained `loopCount`/`bypassListenerRangeCheck`/`playbackPositionSeconds` fields, with `serverSoundHandle` reordered after them.
+- **Unmapped-blockstate fallback** changed from `info_update` (PMMP's reserved debug placeholder) to `stone` - real 1.26.50+ palettes can have genuine schema gaps against this fork's block classes for perfectly normal world terrain, and a real client silently rejected the connection the moment it received chunk data containing `info_update` blocks.
+
+### Fixed a disconnect when moving armor from inventory to an equipped slot
+
+A sixth instance of the dummy-bool pattern above, in `ItemStackResponseSlotInfo`'s `itemStackId` field - found live (not via code review) while investigating a real, reproducible disconnect on moving armor from an inventory slot into its equipped slot on 1.26.50+.
+
+### Fences, glass panes, and bars now render correctly instead of falling back to stone
+
+Mojang added `connection_east/north/south/west` block state properties to fences, glass panes (including colored/hardened variants), and iron/copper bars in 1.26.50 - previously client-side-only visual connections, now part of the network blockstate. This fork's block classes didn't model them, so 1.26.50+ clients couldn't map any connected variant to the new palette and fell back to the placeholder block above.
+
+- Ported `HorizontalConnectable`/`HorizontalConnectableTrait` from `axolotl-pm/PocketMine-MP`, applied to `Fence` and `Thin` (the base class for glass panes and bars). Confirmed `Wall` already modeled its own long-standing connection states correctly and needed no change.
+- Updated block registration (`VanillaBlockMappings`) for glass panes, hardened glass panes, both colored variants, iron bars, copper bars, nether brick fence, all wood fences, and a cosmetic-only dummy-property fix for tripwire (mirrors a Mojang data quirk, not real connection logic).
+- **Old persisted block state data broke on load** (shop items in particular: `Failed to deserialize item data: Property "minecraft:connection_east" is missing`) since it predates these new properties. Fixed with a project-authored block state upgrade schema (`resources/vanilla-1.26.50-data/block_state_upgrade_schema/`) that adds the four new properties (default `false`) to old data, and a `WorldDataVersions::BLOCK_STATES` revision bump. This same upgrade schema is also what keeps 2168/2169 clients unaffected - their block palette lookup for these block types either ignores extra properties entirely (single-variant fast path) or now matches correctly against the upgraded data; verified empirically across all affected block types on every supported protocol, connected and unconnected.
+
+### Repository changes
+
+- Added `resources/vanilla-1.26.50-data/` (tracked in git, not `vendor/`) holding the 1.26.50 block/item data and the custom upgrade schema above - `nethergamesmc/bedrock-data`/`pocketmine/bedrock-block-upgrade-schema` don't support this protocol range yet, so a fresh `composer install` wouldn't have fetched it, silently breaking the GitHub Actions release build. `LOCAL_BEDROCK_DATA_PATH` (`CoreConstants.php`) and `build/codegen/bedrockdata-path-consts.php` were updated accordingly.
+
 ## v5.44.2-syntax.13
 
 ### Protocol-correct skin geometry data and engine version
