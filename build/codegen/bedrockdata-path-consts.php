@@ -37,6 +37,7 @@ use function str_replace;
 use function strtoupper;
 use const PHP_EOL;
 use const pocketmine\BEDROCK_DATA_PATH;
+use const pocketmine\LOCAL_BEDROCK_DATA_PATH;
 use const SCANDIR_SORT_ASCENDING;
 use const STDERR;
 
@@ -46,39 +47,52 @@ function constantify(string $permissionName) : string{
 	return strtoupper(str_replace([".", "-"], "_", $permissionName));
 }
 
-$files = scandir(BEDROCK_DATA_PATH, SCANDIR_SORT_ASCENDING);
-if($files === false){
-	fwrite(STDERR, "Couldn't find any files in " . BEDROCK_DATA_PATH . PHP_EOL);
-	exit(1);
-}
-
-$consts = [];
-
-foreach($files as $file){
-	if($file === '.' || $file === '..'){
-		continue;
-	}
-	if($file[0] === '.'){
-		continue;
-	}
-	$path = Path::join(BEDROCK_DATA_PATH, $file);
-	if(!is_file($path) && !is_dir($path)){
-		continue;
+/**
+ * @return string[] filename => path constant name to use for that file
+ * @phpstan-return array<string, string>
+ */
+function scanDataDir(string $dir, string $pathConstName) : array{
+	$files = scandir($dir, SCANDIR_SORT_ASCENDING);
+	if($files === false){
+		fwrite(STDERR, "Couldn't find any files in " . $dir . PHP_EOL);
+		exit(1);
 	}
 
-	foreach([
-		'README.md',
-		'LICENSE',
-		'composer.json',
-		'.github'
-	] as $ignored){
-		if($file === $ignored){
-			continue 2;
+	$result = [];
+	foreach($files as $file){
+		if($file === '.' || $file === '..'){
+			continue;
 		}
-	}
+		if($file[0] === '.'){
+			continue;
+		}
+		$path = Path::join($dir, $file);
+		if(!is_file($path) && !is_dir($path)){
+			continue;
+		}
 
-	$consts[] = $file;
+		foreach([
+			'README.md',
+			'LICENSE',
+			'composer.json',
+			'.github'
+		] as $ignored){
+			if($file === $ignored){
+				continue 2;
+			}
+		}
+
+		$result[$file] = $pathConstName;
+	}
+	return $result;
 }
+
+//2026-09-17: LOCAL_BEDROCK_DATA_PATH is scanned second so its files win any name collision with
+//BEDROCK_DATA_PATH (none expected in practice - see resources/vanilla-1.26.50-data/README.md).
+$consts = [
+	...scanDataDir(BEDROCK_DATA_PATH, 'BEDROCK_DATA_PATH'),
+	...scanDataDir(LOCAL_BEDROCK_DATA_PATH, 'LOCAL_BEDROCK_DATA_PATH'),
+];
 
 $path = dirname(__DIR__, 2) . '/generated/data/bedrock/BedrockDataFiles.php';
 $dir = dirname($path);
@@ -98,6 +112,7 @@ fwrite($output, <<<'HEADER'
 namespace pocketmine\data\bedrock;
 
 use const pocketmine\BEDROCK_DATA_PATH;
+use const pocketmine\LOCAL_BEDROCK_DATA_PATH;
 
 final class BedrockDataFiles{
 	private function __construct(){
@@ -108,8 +123,8 @@ final class BedrockDataFiles{
 HEADER
 );
 
-foreach($consts as $constName => $fileName){
-	fwrite($output, "\tpublic const " . constantify($fileName) . " = BEDROCK_DATA_PATH . '/$fileName';\n");
+foreach($consts as $fileName => $pathConstName){
+	fwrite($output, "\tpublic const " . constantify($fileName) . " = $pathConstName . '/$fileName';\n");
 }
 
 fwrite($output, "}\n");

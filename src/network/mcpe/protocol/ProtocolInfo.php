@@ -71,6 +71,8 @@ final class ProtocolInfo{
 		self::CURRENT_PROTOCOL,
 		self::PROTOCOL_1_26_40,
 		self::PROTOCOL_1_26_45,
+		self::PROTOCOL_1_26_50,
+		self::PROTOCOL_1_26_51,
 	];
 
 	/** Display version shown in the server logs. This should match the version on the game's home screen. */
@@ -78,9 +80,23 @@ final class ProtocolInfo{
 	/** Version sent on the network for client side compatibility checks. This may differ from the display version. */
 	public const MINECRAFT_VERSION_NETWORK = '1.26.30';
 
-	//2026-08-24: Bedrock 1.26.45 - CloudburstMC/Protocol's Bedrock_v2169 is a pure passthrough
-	//of Bedrock_v2168 (protocolVersion/minecraftVersion bumped, zero serializer changes), so
-	//this reuses every 2168 codepath/data table entry rather than needing new ones.
+	//2026-09-14: Bedrock 1.26.50 - unlike 1.26.45, CloudburstMC/Protocol's Bedrock_v2192 is a
+	//REAL protocol update (~15 changed/new serializers: PlayerAuthInputPacket,
+	//InventoryTransactionPacket, ItemStackResponsePacket, SubChunkPacket, PlaySoundPacket,
+	//plus new packets MoveEntityDeltaPacket/SetPlayerFurnaceOptionsPacket/RecordStartedPacket).
+	//Being ported incrementally, starting with PlayerAuthInputPacket given the live incident
+	//this session was already in the middle of on that exact packet. Reuses 1.26.40's data
+	//table entries (block/item schema) for now - unconfirmed whether Mojang changed those too.
+	//2026-09-17: Bedrock 1.26.51 - CloudburstMC/Protocol confirms this is a PURE renumbering of
+	//v2192 to v2193 (package rename only, +3/-3 per file, no real wire format changes) - 2192
+	//apparently never shipped publicly and 2193 is the actual released protocol number. All the
+	//">=PROTOCOL_1_26_50" branches ported for 2192 already cover this automatically since 2193 >
+	//2192; only the exact-match protocol-keyed data tables need an explicit new entry (see
+	//BlockTranslator/ItemTagToIdMap/ItemTypeDictionaryFromDataHelper/ItemTranslator). The one
+	//real content change upstream (DimensionDataSerializer_v2193's height-range delta encoding)
+	//is moot for us - this fork never sends a populated DimensionDataPacket (grep confirmed).
+	public const PROTOCOL_1_26_51 = 2193;
+	public const PROTOCOL_1_26_50 = 2192;
 	public const PROTOCOL_1_26_45 = 2169;
 	public const PROTOCOL_1_26_40 = 2168;
 	public const PROTOCOL_1_26_30 = 1001;

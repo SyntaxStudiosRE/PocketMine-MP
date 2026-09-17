@@ -40,6 +40,10 @@ class UseItemTransactionData extends TransactionData{
 	private BlockPosition $blockPosition;
 	private int $face;
 	private int $hotbarSlot;
+	//2026-09-16: new field in Bedrock 1.26.50 (protocol 2192, see CloudburstMC/Protocol's
+	//InventoryTransactionSerializer_v2192#writeItemUse "hand" field) - which hand initiated the
+	//item use transaction. Defaults to 0 (main hand) for older protocols where it isn't sent.
+	private int $hand = 0;
 	private ItemStackWrapper $itemInHand;
 	private Vector3 $playerPosition;
 	private Vector3 $clickPosition;
@@ -64,6 +68,8 @@ class UseItemTransactionData extends TransactionData{
 	public function getHotbarSlot() : int{
 		return $this->hotbarSlot;
 	}
+
+	public function getHand() : int{ return $this->hand; }
 
 	public function getItemInHand() : ItemStackWrapper{
 		return $this->itemInHand;
@@ -101,6 +107,9 @@ class UseItemTransactionData extends TransactionData{
 			$this->face = VarInt::readSignedInt($in);
 		}
 		$this->hotbarSlot = VarInt::readSignedInt($in);
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			$this->hand = VarInt::readUnsignedInt($in);
+		}
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30){
 			$this->itemInHand = CommonTypes::getNetworkItemStackDescriptor($in, $protocolId);
 		}else{
@@ -137,6 +146,9 @@ class UseItemTransactionData extends TransactionData{
 			VarInt::writeSignedInt($out, $this->face);
 		}
 		VarInt::writeSignedInt($out, $this->hotbarSlot);
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			VarInt::writeUnsignedInt($out, $this->hand);
+		}
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30){
 			CommonTypes::putNetworkItemStackDescriptor($out, $this->itemInHand, $protocolId);
 		}else{
@@ -172,6 +184,7 @@ class UseItemTransactionData extends TransactionData{
 		int $blockRuntimeId,
 		PredictedResult $clientInteractPrediction,
 		int $clientCooldownState,
+		int $hand = 0,
 	) : self{
 		$result = new self;
 		$result->actionType = $actionType;
@@ -185,14 +198,15 @@ class UseItemTransactionData extends TransactionData{
 		$result->blockRuntimeId = $blockRuntimeId;
 		$result->clientInteractPrediction = $clientInteractPrediction;
 		$result->clientCooldownState = $clientCooldownState;
+		$result->hand = $hand;
 		return $result;
 	}
 
 	/**
 	 * @param NetworkInventoryAction[] $actions
 	 */
-	public static function new(array $actions, int $actionType, TriggerType $triggerType, BlockPosition $blockPosition, int $face, int $hotbarSlot, ItemStackWrapper $itemInHand, Vector3 $playerPosition, Vector3 $clickPosition, int $blockRuntimeId, PredictedResult $clientInteractPrediction, int $clientCooldownState) : self{
-		$result = self::initSelf($actionType, $triggerType, $blockPosition, $face, $hotbarSlot, $itemInHand, $playerPosition, $clickPosition, $blockRuntimeId, $clientInteractPrediction, $clientCooldownState);
+	public static function new(array $actions, int $actionType, TriggerType $triggerType, BlockPosition $blockPosition, int $face, int $hotbarSlot, ItemStackWrapper $itemInHand, Vector3 $playerPosition, Vector3 $clickPosition, int $blockRuntimeId, PredictedResult $clientInteractPrediction, int $clientCooldownState, int $hand = 0) : self{
+		$result = self::initSelf($actionType, $triggerType, $blockPosition, $face, $hotbarSlot, $itemInHand, $playerPosition, $clickPosition, $blockRuntimeId, $clientInteractPrediction, $clientCooldownState, $hand);
 		$result->actions = $actions;
 		return $result;
 	}

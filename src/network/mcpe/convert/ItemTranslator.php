@@ -86,7 +86,14 @@ final class ItemTranslator{
 		if($blockStateData !== null){
 			$blockRuntimeId = $this->blockStateDictionary->lookupStateIdFromData($blockStateData);
 			if($blockRuntimeId === null){
-				throw new AssumptionFailedError("Unmapped blockstate returned by blockstate serializer: " . $blockStateData->toNbt());
+				//2026-09-17: was AssumptionFailedError (uncaught, crashes the whole server) - downgraded
+				//to a recoverable ItemTypeSerializeException (already caught quietly by
+				//toNetworkIdQuiet(), e.g. when building the creative inventory cache) because this can
+				//now genuinely happen: some protocol-specific block palettes cover a real but
+				//incomplete/mismatched block-state schema (e.g. a real 1.26.50 palette has connection_*
+				//states for fences that this fork's own Block classes don't model yet), so a handful of
+				//items may legitimately have no corresponding network blockstate for a given protocol.
+				throw new ItemTypeSerializeException("Unmapped blockstate returned by blockstate serializer: " . $blockStateData->toNbt());
 			}
 		}else{
 			$blockRuntimeId = null;
@@ -137,6 +144,10 @@ final class ItemTranslator{
 
 	public static function getItemSchemaId(int $protocolId) : int{
 		return match($protocolId){
+			//2026-09-17: 1.26.51 (protocol 2193) is a pure renumbering of 2192 - reuse the same entry.
+			ProtocolInfo::PROTOCOL_1_26_51,
+			//2026-09-14: 1.26.50 (protocol 2192) reusing 1.26.40's schema id as a starting point.
+			ProtocolInfo::PROTOCOL_1_26_50,
 			//1.26.45 (protocol 2169) is a pure protocol-number bump over 2168 - same schema.
 			ProtocolInfo::PROTOCOL_1_26_45,
 			ProtocolInfo::PROTOCOL_1_26_40 => 271,

@@ -146,15 +146,27 @@ class NetworkInventoryAction{
 
 		$this->sourceType = VarInt::readUnsignedInt($in);
 
-		if(Byte::readUnsigned($in) !== 1){
-			throw new PacketDecodeException("Inconsistent optional state for windowId");
-		}
-		$this->windowId = CommonTypes::readOptional($in, Byte::readSigned(...));
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
+			//2026-09-17: 1.26.40+ drops the redundant leading "always true" dummy bool entirely (same
+			//cleanup pattern as PlayerAuthInputPacket/ItemStackResponse/InventoryTransactionPacket) -
+			//confirmed empirically live against a real 1.26.51 client via a gophertunnel-based MITM
+			//proxy: a double-nested optional (matching BakuTeam/Essential's approach) wrongly adds an
+			//extra byte whenever the value IS present (breaking block placement, SOURCE_CONTAINER),
+			//while just removing the dummy bool and keeping the existing single optional matches both
+			//the present case (placing blocks) and the absent case (SOURCE_WORLD dropped-item pickup).
+			$this->windowId = CommonTypes::readOptional($in, Byte::readSigned(...));
+			$this->sourceFlags = CommonTypes::readOptional($in, VarInt::readUnsignedInt(...));
+		}else{
+			if(Byte::readUnsigned($in) !== 1){
+				throw new PacketDecodeException("Inconsistent optional state for windowId");
+			}
+			$this->windowId = CommonTypes::readOptional($in, Byte::readSigned(...));
 
-		if(Byte::readUnsigned($in) !== 1){
-			throw new PacketDecodeException("Inconsistent optional state for sourceFlags");
+			if(Byte::readUnsigned($in) !== 1){
+				throw new PacketDecodeException("Inconsistent optional state for sourceFlags");
+			}
+			$this->sourceFlags = CommonTypes::readOptional($in, VarInt::readUnsignedInt(...));
 		}
-		$this->sourceFlags = CommonTypes::readOptional($in, VarInt::readUnsignedInt(...));
 
 		$this->inventorySlot = VarInt::readUnsignedInt($in);
 		$this->oldItem = CommonTypes::getNetworkItemStackDescriptor($in, $protocolId);
@@ -174,11 +186,16 @@ class NetworkInventoryAction{
 
 		VarInt::writeUnsignedInt($out, $this->sourceType);
 
-		Byte::writeUnsigned($out, 1);
-		CommonTypes::writeOptional($out, $this->windowId, Byte::writeSigned(...));
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
+			CommonTypes::writeOptional($out, $this->windowId, Byte::writeSigned(...));
+			CommonTypes::writeOptional($out, $this->sourceFlags, VarInt::writeUnsignedInt(...));
+		}else{
+			Byte::writeUnsigned($out, 1);
+			CommonTypes::writeOptional($out, $this->windowId, Byte::writeSigned(...));
 
-		Byte::writeUnsigned($out, 1);
-		CommonTypes::writeOptional($out, $this->sourceFlags, VarInt::writeUnsignedInt(...));
+			Byte::writeUnsigned($out, 1);
+			CommonTypes::writeOptional($out, $this->sourceFlags, VarInt::writeUnsignedInt(...));
+		}
 
 		VarInt::writeUnsignedInt($out, $this->inventorySlot);
 		CommonTypes::putNetworkItemStackDescriptor($out, $this->oldItem, $protocolId);

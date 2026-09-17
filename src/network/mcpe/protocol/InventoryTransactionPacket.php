@@ -74,11 +74,17 @@ class InventoryTransactionPacket extends DataPacket implements ClientboundPacket
 			}
 		}
 
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30 && Byte::readUnsigned($in) !== 1){
+		//2026-09-17: 1.26.50+ (protocol 2192/2193) drops both of these redundant "always 1" dummy
+		//bools entirely (confirmed against CloudburstMC/Protocol's InventoryTransactionSerializer_v2192,
+		//which reads straight from the legacySlots-optional section to transactionType, then
+		//unconditionally into the inventory actions/trData) - same cleanup pattern already found in
+		//PlayerAuthInputPacket and ItemStackResponse for this protocol range.
+		$hasDummyBools = $protocolId >= ProtocolInfo::PROTOCOL_1_26_30 && $protocolId < ProtocolInfo::PROTOCOL_1_26_50;
+		if($hasDummyBools && Byte::readUnsigned($in) !== 1){
 			throw new PacketDecodeException("Dummy optional bool for transactionType should always be 1");
 		}
 		$transactionType = VarInt::readUnsignedInt($in);
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30 && Byte::readUnsigned($in) !== 1){
+		if($hasDummyBools && Byte::readUnsigned($in) !== 1){
 			throw new PacketDecodeException("Dummy optional bool for trData should always be 1");
 		}
 		$this->trData = match($transactionType) {
@@ -103,7 +109,9 @@ class InventoryTransactionPacket extends DataPacket implements ClientboundPacket
 				}
 			});
 
-			Byte::writeUnsigned($out, 1);
+			if($protocolId < ProtocolInfo::PROTOCOL_1_26_50){
+				Byte::writeUnsigned($out, 1);
+			}
 		}elseif($this->requestId !== 0){
 			VarInt::writeUnsignedInt($out, count($this->requestChangedSlots ?? []));
 			foreach(($this->requestChangedSlots ?? []) as $changedSlots){
@@ -112,7 +120,7 @@ class InventoryTransactionPacket extends DataPacket implements ClientboundPacket
 		}
 		VarInt::writeUnsignedInt($out, $this->trData->getTypeId());
 
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30){
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30 && $protocolId < ProtocolInfo::PROTOCOL_1_26_50){
 			Byte::writeUnsigned($out, 1);
 		}
 		$this->trData->encodeTransaction($out, $protocolId);

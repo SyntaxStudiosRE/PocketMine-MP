@@ -280,6 +280,10 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 	public function getRawMove() : Vector2{ return $this->rawMove; }
 
 	protected function decodePayload(ByteBufferReader $in, int $protocolId) : void{
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			$this->decodePayload2192($in);
+			return;
+		}
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
 			$this->decodePayload2168($in);
 			return;
@@ -406,11 +410,79 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 		$this->rawMove = CommonTypes::getVector2($in);
 	}
 
+	/**
+	 * 2026-09-16: Bedrock 1.26.50 (protocol 2192). Cross-checked directly against CloudburstMC/Protocol's
+	 * PlayerAuthInputSerializer_v2192.java (which extends the same v944 lineage 2168 already builds on).
+	 * Field order/types are identical to decodePayload2168(), with exactly two wire-format differences:
+	 *  - the input-flags list has no leading "any flags present" bool - straight to the unsigned count.
+	 *  - each optional trailing section (item interaction, item stack request, block actions, vehicle
+	 *    rotation, predicted vehicle) is gated by a SINGLE bool instead of 2168's double-bool pattern.
+	 * Everything else (ItemInteractionData/UseItemTransactionData, PlayerBlockActionWithBlockInfo,
+	 * ItemStackRequest) is untouched by CloudburstMC's v2192 codec, so those are reused as-is.
+	 */
+	private function decodePayload2192(ByteBufferReader $in) : void{
+		$this->pitch = LE::readFloat($in);
+		$this->yaw = LE::readFloat($in);
+		$this->position = CommonTypes::getVector3($in);
+		$this->moveVecX = LE::readFloat($in);
+		$this->moveVecZ = LE::readFloat($in);
+		$this->headYaw = LE::readFloat($in);
+
+		$this->inputFlags = new BitSet(PlayerAuthInputFlags::NUMBER_OF_FLAGS_1_26_40);
+		for($i = 0, $count = VarInt::readUnsignedInt($in); $i < $count; ++$i){
+			$this->inputFlags->set(VarInt::readSignedInt($in), true);
+		}
+
+		$this->inputMode = VarInt::readUnsignedInt($in);
+		$this->playMode = VarInt::readUnsignedInt($in);
+		$this->interactionMode = VarInt::readSignedInt($in);
+		$this->interactRotation = CommonTypes::getVector2($in);
+		$this->tick = VarInt::readUnsignedLong($in);
+		$this->delta = CommonTypes::getVector3($in);
+
+		if(CommonTypes::getBool($in)){
+			$this->itemInteractionData = ItemInteractionData::read($in);
+		}
+		if(CommonTypes::getBool($in)){
+			$this->itemStackRequest = ItemStackRequest::read($in, ProtocolInfo::PROTOCOL_1_26_40);
+		}
+		if(CommonTypes::getBool($in)){
+			$this->blockActions = [];
+			for($i = 0, $max = VarInt::readUnsignedInt($in); $i < $max; ++$i){
+				$actionType = VarInt::readSignedInt($in);
+				$this->blockActions[] = match(true){
+					PlayerBlockActionWithBlockInfo::isValidActionType($actionType) => PlayerBlockActionWithBlockInfo::read($in, $actionType),
+					$actionType === PlayerAction::STOP_BREAK => new PlayerBlockActionStopBreak(),
+					default => throw new PacketDecodeException("Unexpected block action type $actionType")
+				};
+			}
+		}
+		if(CommonTypes::getBool($in)){
+			$vehicleRotation = CommonTypes::getVector2($in);
+		}
+		if(CommonTypes::getBool($in)){
+			$predictedVehicle = VarInt::readSignedLong($in);
+		}
+		if(isset($vehicleRotation) || isset($predictedVehicle)){
+			$this->vehicleInfo = new PlayerAuthInputVehicleInfo($vehicleRotation?->getX(), $vehicleRotation?->getY(), $predictedVehicle ?? 0);
+		}
+
+		$this->analogMoveVecX = LE::readFloat($in);
+		$this->analogMoveVecZ = LE::readFloat($in);
+		$this->cameraOrientation = CommonTypes::getVector3($in);
+		$this->rawMove = CommonTypes::getVector2($in);
+	}
+
 	protected function encodePayload(ByteBufferWriter $out, int $protocolId) : void{
 		$inputFlags = $this->inputFlags;
 
 		if($this->vehicleInfo !== null && $protocolId >= ProtocolInfo::PROTOCOL_1_20_60){
 			$inputFlags->set(PlayerAuthInputFlags::IN_CLIENT_PREDICTED_VEHICLE, true);
+		}
+
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			$this->encodePayload2192($out);
+			return;
 		}
 
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
@@ -528,6 +600,77 @@ class PlayerAuthInputPacket extends DataPacket implements ServerboundPacket{
 		}
 
 		CommonTypes::putBool($out, true);
+		if($this->vehicleInfo !== null){
+			CommonTypes::putBool($out, true);
+			VarInt::writeSignedLong($out, $this->vehicleInfo->getPredictedVehicleActorUniqueId());
+		}else{
+			CommonTypes::putBool($out, false);
+		}
+
+		LE::writeFloat($out, $this->analogMoveVecX);
+		LE::writeFloat($out, $this->analogMoveVecZ);
+		CommonTypes::putVector3($out, $this->cameraOrientation);
+		CommonTypes::putVector2($out, $this->rawMove);
+	}
+
+	private function encodePayload2192(ByteBufferWriter $out) : void{
+		LE::writeFloat($out, $this->pitch);
+		LE::writeFloat($out, $this->yaw);
+		CommonTypes::putVector3($out, $this->position);
+		LE::writeFloat($out, $this->moveVecX);
+		LE::writeFloat($out, $this->moveVecZ);
+		LE::writeFloat($out, $this->headYaw);
+
+		$setIndexes = [];
+		for($i = 0, $flagsLength = min($this->inputFlags->getLength(), PlayerAuthInputFlags::NUMBER_OF_FLAGS_1_26_40); $i < $flagsLength; ++$i){
+			if($this->inputFlags->get($i)){
+				$setIndexes[] = $i;
+			}
+		}
+		VarInt::writeUnsignedInt($out, count($setIndexes));
+		foreach($setIndexes as $index){
+			VarInt::writeSignedInt($out, $index);
+		}
+
+		VarInt::writeUnsignedInt($out, $this->inputMode);
+		VarInt::writeUnsignedInt($out, $this->playMode);
+		VarInt::writeSignedInt($out, $this->interactionMode);
+		CommonTypes::putVector2($out, $this->interactRotation);
+		VarInt::writeUnsignedLong($out, $this->tick);
+		CommonTypes::putVector3($out, $this->delta);
+
+		if($this->itemInteractionData !== null){
+			CommonTypes::putBool($out, true);
+			$this->itemInteractionData->write($out);
+		}else{
+			CommonTypes::putBool($out, false);
+		}
+
+		if($this->itemStackRequest !== null){
+			CommonTypes::putBool($out, true);
+			$this->itemStackRequest->write($out, ProtocolInfo::PROTOCOL_1_26_40);
+		}else{
+			CommonTypes::putBool($out, false);
+		}
+
+		if($this->blockActions !== null){
+			CommonTypes::putBool($out, true);
+			VarInt::writeUnsignedInt($out, count($this->blockActions));
+			foreach($this->blockActions as $blockAction){
+				VarInt::writeSignedInt($out, $blockAction->getActionType());
+				$blockAction->write($out);
+			}
+		}else{
+			CommonTypes::putBool($out, false);
+		}
+
+		if($this->vehicleInfo !== null && $this->vehicleInfo->getVehicleRotationX() !== null){
+			CommonTypes::putBool($out, true);
+			CommonTypes::putVector2($out, new Vector2($this->vehicleInfo->getVehicleRotationX(), $this->vehicleInfo->getVehicleRotationZ()));
+		}else{
+			CommonTypes::putBool($out, false);
+		}
+
 		if($this->vehicleInfo !== null){
 			CommonTypes::putBool($out, true);
 			VarInt::writeSignedLong($out, $this->vehicleInfo->getPredictedVehicleActorUniqueId());

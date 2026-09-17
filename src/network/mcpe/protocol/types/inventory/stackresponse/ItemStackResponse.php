@@ -53,7 +53,15 @@ final class ItemStackResponse{
 		$result = Byte::readUnsigned($in);
 		$requestId = CommonTypes::readItemStackRequestId($in);
 		$containerInfos = [];
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			//2026-09-16: 1.26.50 (protocol 2192) drops the redundant leading "always true" bool that
+			//1.26.40-2168 kept - only the "has containers" bool remains on the wire.
+			if(CommonTypes::getBool($in)){
+				for($i = 0, $len = VarInt::readUnsignedInt($in); $i < $len; ++$i){
+					$containerInfos[] = ItemStackResponseContainerInfo::read($in, $protocolId);
+				}
+			}
+		}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
 			CommonTypes::getBool($in); //redundant bool, always true
 			if(CommonTypes::getBool($in)){
 				for($i = 0, $len = VarInt::readUnsignedInt($in); $i < $len; ++$i){
@@ -71,7 +79,16 @@ final class ItemStackResponse{
 	public function write(ByteBufferWriter $out, int $protocolId) : void{
 		Byte::writeUnsigned($out, $this->result);
 		CommonTypes::writeItemStackRequestId($out, $this->requestId);
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			$hasContainers = count($this->containerInfos) > 0;
+			CommonTypes::putBool($out, $hasContainers);
+			if($hasContainers){
+				VarInt::writeUnsignedInt($out, count($this->containerInfos));
+				foreach($this->containerInfos as $containerInfo){
+					$containerInfo->write($out, $protocolId);
+				}
+			}
+		}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
 			CommonTypes::putBool($out, true); //redundant bool, always true
 			$hasContainers = count($this->containerInfos) > 0;
 			CommonTypes::putBool($out, $hasContainers);

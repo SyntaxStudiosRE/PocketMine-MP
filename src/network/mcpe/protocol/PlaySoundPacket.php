@@ -17,6 +17,7 @@ namespace pocketmine\network\mcpe\protocol;
 use pmmp\encoding\ByteBufferReader;
 use pmmp\encoding\ByteBufferWriter;
 use pmmp\encoding\LE;
+use pmmp\encoding\VarInt;
 use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
 use pocketmine\network\mcpe\protocol\types\BlockPosition;
 
@@ -30,6 +31,12 @@ class PlaySoundPacket extends DataPacket implements ClientboundPacket{
 	public float $volume;
 	public float $pitch;
 	public ?int $serverSoundHandle = null;
+	//2026-09-16: new in Bedrock 1.26.50 (protocol 2192, see CloudburstMC/Protocol's
+	//PlaySoundSerializer_v2192). Defaults preserve pre-2192 behaviour: play once, don't bypass the
+	//listener range check, and start from the beginning.
+	public int $loopCount = 0;
+	public bool $bypassListenerRangeCheck = false;
+	public ?float $playbackPositionSeconds = null;
 
 	/**
 	 * @generate-create-func
@@ -42,6 +49,9 @@ class PlaySoundPacket extends DataPacket implements ClientboundPacket{
 		float $volume,
 		float $pitch,
 		?int $serverSoundHandle,
+		int $loopCount = 0,
+		bool $bypassListenerRangeCheck = false,
+		?float $playbackPositionSeconds = null,
 	) : self{
 		$result = new self;
 		$result->soundName = $soundName;
@@ -51,6 +61,9 @@ class PlaySoundPacket extends DataPacket implements ClientboundPacket{
 		$result->volume = $volume;
 		$result->pitch = $pitch;
 		$result->serverSoundHandle = $serverSoundHandle;
+		$result->loopCount = $loopCount;
+		$result->bypassListenerRangeCheck = $bypassListenerRangeCheck;
+		$result->playbackPositionSeconds = $playbackPositionSeconds;
 		return $result;
 	}
 
@@ -62,7 +75,14 @@ class PlaySoundPacket extends DataPacket implements ClientboundPacket{
 		$this->z = $blockPosition->getZ() / 8;
 		$this->volume = LE::readFloat($in);
 		$this->pitch = LE::readFloat($in);
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_20){
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			//1.26.50 moves serverSoundHandle after these two new fields (see PlaySoundSerializer_v2192,
+			//which intentionally skips the 2168-era ancestor and re-adds serverSoundHandle itself).
+			$this->loopCount = VarInt::readUnsignedInt($in);
+			$this->bypassListenerRangeCheck = CommonTypes::getBool($in);
+			$this->serverSoundHandle = CommonTypes::readOptional($in, LE::readUnsignedLong(...));
+			$this->playbackPositionSeconds = CommonTypes::readOptional($in, LE::readFloat(...));
+		}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_26_20){
 			$this->serverSoundHandle = CommonTypes::readOptional($in, LE::readUnsignedLong(...));
 		}
 	}
@@ -72,7 +92,12 @@ class PlaySoundPacket extends DataPacket implements ClientboundPacket{
 		CommonTypes::putBlockPosition($out, new BlockPosition((int) ($this->x * 8), (int) ($this->y * 8), (int) ($this->z * 8)), $protocolId >= ProtocolInfo::PROTOCOL_1_26_10);
 		LE::writeFloat($out, $this->volume);
 		LE::writeFloat($out, $this->pitch);
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_20){
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			VarInt::writeUnsignedInt($out, $this->loopCount);
+			CommonTypes::putBool($out, $this->bypassListenerRangeCheck);
+			CommonTypes::writeOptional($out, $this->serverSoundHandle, LE::writeUnsignedLong(...));
+			CommonTypes::writeOptional($out, $this->playbackPositionSeconds, LE::writeFloat(...));
+		}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_26_20){
 			CommonTypes::writeOptional($out, $this->serverSoundHandle, LE::writeUnsignedLong(...));
 		}
 	}

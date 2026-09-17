@@ -45,6 +45,8 @@ final class ItemTagToIdMap{
 	use ProtocolSingletonTrait;
 
 	private const PATHS = [
+		//1.26.50 and 1.26.51 (2192/2193) are handled separately in make() via
+		//LOCAL_BEDROCK_DATA_PATH, not through this table - see resources/vanilla-1.26.50-data/.
 		//1.26.45 (protocol 2169) is a pure protocol-number bump over 2168 - reuse the same
 		//data file, see ProtocolInfo::PROTOCOL_1_26_45.
 		ProtocolInfo::PROTOCOL_1_26_45 => "",
@@ -80,7 +82,10 @@ final class ItemTagToIdMap{
 	];
 
 	private static function make(int $protocolId) : self{
-		$map = json_decode(Filesystem::fileGetContents(str_replace(".json", self::PATHS[$protocolId] . ".json", BedrockDataFiles::ITEM_TAGS_JSON)), true, flags: JSON_THROW_ON_ERROR);
+		$path = $protocolId === ProtocolInfo::PROTOCOL_1_26_50 || $protocolId === ProtocolInfo::PROTOCOL_1_26_51
+			? BedrockDataFiles::ITEM_TAGS_1_26_50_JSON
+			: str_replace(".json", self::PATHS[$protocolId] . ".json", BedrockDataFiles::ITEM_TAGS_JSON);
+		$map = json_decode(Filesystem::fileGetContents($path), true, flags: JSON_THROW_ON_ERROR);
 		if(!is_array($map)){
 			throw new AssumptionFailedError("Invalid item tag map, expected array");
 		}

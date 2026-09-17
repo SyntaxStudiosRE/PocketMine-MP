@@ -74,6 +74,17 @@ class PreSpawnPacketHandler extends PacketHandler{
 
 			$typeConverter = $this->session->getTypeConverter();
 
+			if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+				//2026-09-17: real client silently rejects the connection ("Boat" disconnect, no
+				//reason given) right as chunk sending starts unless it already has this - confirmed
+				//live against a real 1.26.51 client. See StaticPacketCache.
+				$this->session->getLogger()->debug("Sending JigsawStructureData");
+				$this->session->sendDataPacket(StaticPacketCache::getInstance()->getJigsawStructureData());
+
+				$this->session->getLogger()->debug("Sending VoxelShapes");
+				$this->session->sendDataPacket(StaticPacketCache::getInstance()->getVoxelShapes());
+			}
+
 			$this->session->getLogger()->debug("Preparing StartGamePacket");
 			$levelSettings = new LevelSettings();
 			$levelSettings->seed = -1;
@@ -120,7 +131,12 @@ class PreSpawnPacketHandler extends PacketHandler{
 				true,
 				null,
 				new ServerTelemetryData("", "", "", ""),
-				[],
+				//2026-09-17: real 1.26.50+ client also needs this populated - was always [] before
+				//since we don't have custom blocks, but that alone left it silently rejecting the
+				//connection at the same point unless the two new packets above are ALSO sent.
+				//Left as [] for older protocols (unconfirmed schema compatibility, and it's been
+				//working fine as empty for weeks in production).
+				$protocolId >= ProtocolInfo::PROTOCOL_1_26_50 ? StaticPacketCache::getInstance()->getBlockPaletteEntries() : [],
 				0,
 				$typeConverter->getItemTypeDictionary()->getEntries(),
 			));

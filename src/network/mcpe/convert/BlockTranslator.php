@@ -42,6 +42,8 @@ final class BlockTranslator{
 	public const BLOCK_STATE_META_MAP_PATH = 1;
 
 	private const PATHS = [
+		//1.26.50 and 1.26.51 (2192/2193) are handled separately in loadFromProtocolId() via
+		//LOCAL_BEDROCK_DATA_PATH, not through this table - see resources/vanilla-1.26.50-data/.
 		//1.26.45 (protocol 2169) is a pure protocol-number bump over 1.26.40-44 (2168) -
 		//reuse the same data files, see ProtocolInfo::PROTOCOL_1_26_45.
 		ProtocolInfo::PROTOCOL_1_26_45 => [
@@ -177,8 +179,15 @@ final class BlockTranslator{
 	private int $fallbackStateId;
 
 	public static function loadFromProtocolId(int $protocolId) : BlockTranslator{
-		$canonicalBlockStatesRaw = Filesystem::fileGetContents(str_replace(".nbt", self::PATHS[$protocolId][self::CANONICAL_BLOCK_STATES_PATH] . ".nbt", BedrockDataFiles::CANONICAL_BLOCK_STATES_NBT));
-		$metaMappingRaw = Filesystem::fileGetContents(str_replace(".json", self::PATHS[$protocolId][self::BLOCK_STATE_META_MAP_PATH] . ".json", BedrockDataFiles::BLOCK_STATE_META_MAP_JSON));
+		//2026-09-17: 1.26.50/1.26.51 data lives outside vendor/nethergamesmc/bedrock-data/ (that
+		//package doesn't support this protocol range yet) - see LOCAL_BEDROCK_DATA_PATH.
+		if($protocolId === ProtocolInfo::PROTOCOL_1_26_50 || $protocolId === ProtocolInfo::PROTOCOL_1_26_51){
+			$canonicalBlockStatesRaw = Filesystem::fileGetContents(BedrockDataFiles::CANONICAL_BLOCK_STATES_1_26_50_NBT);
+			$metaMappingRaw = Filesystem::fileGetContents(BedrockDataFiles::BLOCK_STATE_META_MAP_1_26_50_JSON);
+		}else{
+			$canonicalBlockStatesRaw = Filesystem::fileGetContents(str_replace(".nbt", self::PATHS[$protocolId][self::CANONICAL_BLOCK_STATES_PATH] . ".nbt", BedrockDataFiles::CANONICAL_BLOCK_STATES_NBT));
+			$metaMappingRaw = Filesystem::fileGetContents(str_replace(".json", self::PATHS[$protocolId][self::BLOCK_STATE_META_MAP_PATH] . ".json", BedrockDataFiles::BLOCK_STATE_META_MAP_JSON));
+		}
 		return new self(
 			BlockStateDictionary::loadFromString($canonicalBlockStatesRaw, $metaMappingRaw, $protocolId >= ProtocolInfo::PROTOCOL_1_26_40),
 			GlobalBlockStateHandlers::getSerializer(),
@@ -189,9 +198,17 @@ final class BlockTranslator{
 		private BlockStateDictionary $blockStateDictionary,
 		private BlockStateSerializer $blockStateSerializer
 	){
-		$this->fallbackStateData = BlockStateData::current(BlockTypeNames::INFO_UPDATE, []);
+		//2026-09-17: was BlockTypeNames::INFO_UPDATE (PMMP's classic "unmappable legacy block"
+		//placeholder) - switched to plain stone because real 1.26.50/2192+ block palettes can have
+		//genuine schema gaps against this fork's own Block classes (e.g. fence connection_* states
+		//this fork doesn't model), so this fallback can now be hit for perfectly normal world
+		//terrain, not just corrupted/legacy data. A real client silently rejected the connection
+		//("Boat" disconnect, no reason given) the moment it started receiving chunk data containing
+		//info_update blocks - a reserved/debug block real clients likely treat as a red flag for
+		//corrupted world data. Stone is common, unremarkable, and always present in every palette.
+		$this->fallbackStateData = BlockStateData::current(BlockTypeNames::STONE, []);
 		$this->fallbackStateId = $this->blockStateDictionary->lookupStateIdFromData($this->fallbackStateData) ??
-			throw new AssumptionFailedError(BlockTypeNames::INFO_UPDATE . " should always exist");
+			throw new AssumptionFailedError(BlockTypeNames::STONE . " should always exist");
 	}
 
 	public function internalIdToNetworkId(int $internalStateId) : int{
