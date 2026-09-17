@@ -50,7 +50,16 @@ final class ItemStackResponseSlotInfo{
 		$slot = Byte::readUnsigned($in);
 		$hotbarSlot = Byte::readUnsigned($in);
 		$count = Byte::readUnsigned($in);
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			//2026-09-17: 1.26.50+ drops the redundant leading "always true" dummy bool (same
+			//cleanup pattern as PlayerAuthInputPacket/InventoryTransactionPacket/NetworkInventoryAction/
+			//the top-level ItemStackResponse "hasContainers" bool) - confirmed live: moving armor
+			//between the armor container and inventory (ContainerID 6 <-> 29) desynced the response
+			//from this point onward and got silently rejected by a real client, but worked fine
+			//through a gophertunnel-based proxy (which re-encodes correctly regardless of what we
+			//originally sent).
+			$itemStackId = CommonTypes::getBool($in) ? CommonTypes::readServerItemStackId($in) : 0;
+		}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
 			$itemStackId = CommonTypes::getBool($in) && CommonTypes::getBool($in) ? CommonTypes::readServerItemStackId($in) : 0;
 		}else{
 			$itemStackId = CommonTypes::readServerItemStackId($in);
@@ -67,7 +76,13 @@ final class ItemStackResponseSlotInfo{
 		Byte::writeUnsigned($out, $this->slot);
 		Byte::writeUnsigned($out, $this->hotbarSlot);
 		Byte::writeUnsigned($out, $this->count);
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			$hasStackId = $this->itemStackId > 0;
+			CommonTypes::putBool($out, $hasStackId);
+			if($hasStackId){
+				CommonTypes::writeServerItemStackId($out, $this->itemStackId);
+			}
+		}elseif($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
 			CommonTypes::putBool($out, true); //redundant bool, always true
 			$hasStackId = $this->itemStackId > 0;
 			CommonTypes::putBool($out, $hasStackId);
