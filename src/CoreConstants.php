@@ -36,11 +36,14 @@ define('pocketmine\_CORE_CONSTANTS_INCLUDED', true);
 define('pocketmine\PATH', dirname(__DIR__) . '/');
 define('pocketmine\RESOURCE_PATH', dirname(__DIR__) . '/resources/');
 define('pocketmine\BEDROCK_DATA_PATH', dirname(__DIR__) . '/vendor/nethergamesmc/bedrock-data/');
-//2026-09-17: holds Bedrock 1.26.50+ block/item data that isn't published by any upstream composer
-//package yet (nethergamesmc/bedrock-data doesn't have it) - tracked directly in this repo instead of
-//vendor/ so a fresh `composer install` (e.g. in CI) still produces a working build. See
-//resources/vanilla-1.26.50-data/README.md.
-define('pocketmine\LOCAL_BEDROCK_DATA_PATH', dirname(__DIR__) . '/resources/vanilla-1.26.50-data/');
+//2026-09-17: holds Bedrock block/item data that isn't in the nethergamesmc/bedrock-data version
+//actually pinned in composer.lock - tracked directly in this repo instead of vendor/ so a fresh
+//`composer install` (e.g. in CI) still produces a working build. This is NOT just for 1.26.50+:
+//a 2026-09-17 production crash (protocol 2169 connecting) revealed 1.26.40/1.26.45 support had the
+//exact same gap since ~August - composer.lock was never bumped after those files were added locally,
+//so the first ever from-scratch `composer install` (this same day's CI release build) silently
+//produced a phar missing them. See resources/vanilla-bedrock-data-overrides/README.md.
+define('pocketmine\LOCAL_BEDROCK_DATA_PATH', dirname(__DIR__) . '/resources/vanilla-bedrock-data-overrides/');
 define('pocketmine\LOCALE_DATA_PATH', dirname(__DIR__) . '/resources/translations/');
 define('pocketmine\BEDROCK_BLOCK_UPGRADE_SCHEMA_PATH', dirname(__DIR__) . '/vendor/pocketmine/bedrock-block-upgrade-schema/');
 define('pocketmine\BEDROCK_ITEM_UPGRADE_SCHEMA_PATH', dirname(__DIR__) . '/vendor/pocketmine/bedrock-item-upgrade-schema/');

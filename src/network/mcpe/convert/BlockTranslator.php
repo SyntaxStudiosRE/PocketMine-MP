@@ -42,18 +42,9 @@ final class BlockTranslator{
 	public const BLOCK_STATE_META_MAP_PATH = 1;
 
 	private const PATHS = [
-		//1.26.50 and 1.26.51 (2192/2193) are handled separately in loadFromProtocolId() via
-		//LOCAL_BEDROCK_DATA_PATH, not through this table - see resources/vanilla-1.26.50-data/.
-		//1.26.45 (protocol 2169) is a pure protocol-number bump over 1.26.40-44 (2168) -
-		//reuse the same data files, see ProtocolInfo::PROTOCOL_1_26_45.
-		ProtocolInfo::PROTOCOL_1_26_45 => [
-			self::CANONICAL_BLOCK_STATES_PATH => '-1.26.40',
-			self::BLOCK_STATE_META_MAP_PATH => '-1.26.40',
-		],
-		ProtocolInfo::PROTOCOL_1_26_40 => [
-			self::CANONICAL_BLOCK_STATES_PATH => '-1.26.40',
-			self::BLOCK_STATE_META_MAP_PATH => '-1.26.40',
-		],
+		//1.26.40, 1.26.45, 1.26.50, and 1.26.51 (2168/2169/2192/2193) are handled separately in
+		//loadFromProtocolId() via LOCAL_BEDROCK_DATA_PATH, not through this table - see
+		//resources/vanilla-bedrock-data-overrides/.
 		ProtocolInfo::CURRENT_PROTOCOL => [
 			self::CANONICAL_BLOCK_STATES_PATH => '',
 			self::BLOCK_STATE_META_MAP_PATH => '',
@@ -179,11 +170,15 @@ final class BlockTranslator{
 	private int $fallbackStateId;
 
 	public static function loadFromProtocolId(int $protocolId) : BlockTranslator{
-		//2026-09-17: 1.26.50/1.26.51 data lives outside vendor/nethergamesmc/bedrock-data/ (that
-		//package doesn't support this protocol range yet) - see LOCAL_BEDROCK_DATA_PATH.
+		//2026-09-17: 1.26.40/1.26.45 and 1.26.50/1.26.51 data lives outside
+		//vendor/nethergamesmc/bedrock-data/ (either not in the composer.lock-pinned commit, or not
+		//supported by that package at all yet) - see LOCAL_BEDROCK_DATA_PATH.
 		if($protocolId === ProtocolInfo::PROTOCOL_1_26_50 || $protocolId === ProtocolInfo::PROTOCOL_1_26_51){
 			$canonicalBlockStatesRaw = Filesystem::fileGetContents(BedrockDataFiles::CANONICAL_BLOCK_STATES_1_26_50_NBT);
 			$metaMappingRaw = Filesystem::fileGetContents(BedrockDataFiles::BLOCK_STATE_META_MAP_1_26_50_JSON);
+		}elseif($protocolId === ProtocolInfo::PROTOCOL_1_26_40 || $protocolId === ProtocolInfo::PROTOCOL_1_26_45){
+			$canonicalBlockStatesRaw = Filesystem::fileGetContents(BedrockDataFiles::CANONICAL_BLOCK_STATES_1_26_40_NBT);
+			$metaMappingRaw = Filesystem::fileGetContents(BedrockDataFiles::BLOCK_STATE_META_MAP_1_26_40_JSON);
 		}else{
 			$canonicalBlockStatesRaw = Filesystem::fileGetContents(str_replace(".nbt", self::PATHS[$protocolId][self::CANONICAL_BLOCK_STATES_PATH] . ".nbt", BedrockDataFiles::CANONICAL_BLOCK_STATES_NBT));
 			$metaMappingRaw = Filesystem::fileGetContents(str_replace(".json", self::PATHS[$protocolId][self::BLOCK_STATE_META_MAP_PATH] . ".json", BedrockDataFiles::BLOCK_STATE_META_MAP_JSON));
