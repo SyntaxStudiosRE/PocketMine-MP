@@ -45,12 +45,9 @@ use function str_replace;
 final class ItemTypeDictionaryFromDataHelper{
 
 	private const PATHS = [
-		//1.26.50 and 1.26.51 (2192/2193) are handled separately in loadFromProtocolId() via
-		//LOCAL_BEDROCK_DATA_PATH, not through this table - see resources/vanilla-1.26.50-data/.
-		//1.26.45 (protocol 2169) is a pure protocol-number bump over 2168 - reuse the same
-		//data file, see ProtocolInfo::PROTOCOL_1_26_45.
-		ProtocolInfo::PROTOCOL_1_26_45 => "-1.26.40",
-		ProtocolInfo::PROTOCOL_1_26_40 => "-1.26.40",
+		//1.26.40, 1.26.45, 1.26.50, and 1.26.51 (2168/2169/2192/2193) are handled separately in
+		//loadFromProtocolId() via LOCAL_BEDROCK_DATA_PATH, not through this table - see
+		//resources/vanilla-bedrock-data-overrides/.
 		ProtocolInfo::CURRENT_PROTOCOL => "",
 		ProtocolInfo::PROTOCOL_1_26_20 => "-1.26.20",
 		ProtocolInfo::PROTOCOL_1_26_10 => "-1.26.10",
@@ -82,9 +79,11 @@ final class ItemTypeDictionaryFromDataHelper{
 	];
 
 	public static function loadFromProtocolId(int $protocolId) : ItemTypeDictionary{
-		$path = $protocolId === ProtocolInfo::PROTOCOL_1_26_50 || $protocolId === ProtocolInfo::PROTOCOL_1_26_51
-			? BedrockDataFiles::REQUIRED_ITEM_LIST_1_26_50_JSON
-			: str_replace(".json", self::PATHS[$protocolId] . ".json", BedrockDataFiles::REQUIRED_ITEM_LIST_JSON);
+		$path = match($protocolId){
+			ProtocolInfo::PROTOCOL_1_26_50, ProtocolInfo::PROTOCOL_1_26_51 => BedrockDataFiles::REQUIRED_ITEM_LIST_1_26_50_JSON,
+			ProtocolInfo::PROTOCOL_1_26_40, ProtocolInfo::PROTOCOL_1_26_45 => BedrockDataFiles::REQUIRED_ITEM_LIST_1_26_40_JSON,
+			default => str_replace(".json", self::PATHS[$protocolId] . ".json", BedrockDataFiles::REQUIRED_ITEM_LIST_JSON),
+		};
 		return self::loadFromString(Filesystem::fileGetContents($path));
 	}
 
