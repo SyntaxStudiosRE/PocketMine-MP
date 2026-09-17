@@ -34,6 +34,7 @@ use pocketmine\data\bedrock\block\upgrade\BlockIdMetaUpgrader;
 use pocketmine\data\bedrock\block\upgrade\BlockStateUpgrader;
 use pocketmine\data\bedrock\block\upgrade\BlockStateUpgradeSchemaUtils;
 use pocketmine\data\bedrock\block\upgrade\LegacyBlockIdToStringIdMap;
+use pocketmine\data\bedrock\BedrockDataFiles;
 use pocketmine\utils\Filesystem;
 use Symfony\Component\Filesystem\Path;
 use const PHP_INT_MAX;
@@ -72,8 +73,15 @@ final class GlobalBlockStateHandlers{
 
 	public static function getUpgrader() : BlockDataUpgrader{
 		if(self::$blockDataUpgrader === null){
+			//2026-09-17: BLOCK_STATE_UPGRADE_SCHEMA holds a project-authored schema (not from Mojang/
+			//upstream pocketmine/bedrock-block-upgrade-schema) that adds the connection_east/north/
+			//south/west properties fences/glass panes/bars gained in Bedrock 1.26.50 to older, already-
+			//persisted block state data - see resources/vanilla-1.26.50-data/README.md.
 			$blockStateUpgrader = new BlockStateUpgrader(BlockStateUpgradeSchemaUtils::loadSchemas(
 				Path::join(BEDROCK_BLOCK_UPGRADE_SCHEMA_PATH, 'nbt_upgrade_schema'),
+				PHP_INT_MAX
+			) + BlockStateUpgradeSchemaUtils::loadSchemas(
+				BedrockDataFiles::BLOCK_STATE_UPGRADE_SCHEMA,
 				PHP_INT_MAX
 			));
 			self::$blockDataUpgrader = new BlockDataUpgrader(

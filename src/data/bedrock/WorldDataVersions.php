@@ -36,12 +36,18 @@ final class WorldDataVersions{
 	 *
 	 * This is *NOT* the same as current game version. It should match the numbers in the
 	 * newest blockstate upgrade schema used in BedrockBlockUpgradeSchema.
+	 *
+	 * 2026-09-17: bumped revision 33 -> 34 for our own local schema
+	 * (0332_1.21.60.33_to_1.21.60.34_syntaxstudios_horizontal_connections.json) that adds the
+	 * minecraft:connection_east/north/south/west properties Mojang added to fences/glass panes/bars
+	 * in Bedrock 1.26.50 - without this, block state data (shop items, chests, etc) saved before the
+	 * HorizontalConnectableTrait port fails to deserialize with "Property ... is missing".
 	 */
 	public const BLOCK_STATES =
 		(1 << 24) | //major
 		(21 << 16) | //minor
 		(60 << 8) | //patch
-		(33); //revision
+		(34); //revision
 
 	public const CHUNK = ChunkVersion::v1_21_120;
 	public const SUBCHUNK = SubChunkVersion::PALETTED_MULTI;
