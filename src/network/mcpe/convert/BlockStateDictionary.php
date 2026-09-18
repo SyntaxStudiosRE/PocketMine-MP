@@ -24,6 +24,7 @@ declare(strict_types=1);
 namespace pocketmine\network\mcpe\convert;
 
 use pocketmine\data\bedrock\block\BlockStateData;
+use pocketmine\data\bedrock\block\BlockStateNames;
 use pocketmine\data\bedrock\block\BlockTypeNames;
 use pocketmine\nbt\NbtDataException;
 use pocketmine\nbt\TreeRoot;
@@ -185,6 +186,43 @@ final class BlockStateDictionary{
 	}
 
 	/**
+	 * 2026-09-18: same as lookupStateIdFromData(), but if the exact lookup fails, retries with
+	 * minecraft:corner (stair shape) and connection_east/north/south/west (fence/pane/bars connections)
+	 * removed entirely - these don't exist at all in protocols below 1.26.50 (this dictionary is loaded
+	 * without our own local schemas specifically so its entries match a real client's own hashes, see
+	 * GlobalBlockStateHandlers::getVendorOnlyBlockStateUpgrader()), so a query that includes them can
+	 * never exact-match there even when the "connected"/"shape" value would otherwise be the harmless
+	 * default. Used everywhere a Block(Item) needs a network ID, not just chunk sending - found missing
+	 * from ItemTranslator::toNetworkId() when stairs showed the "unknown item" icon in creative
+	 * inventory on 1.26.45 despite placing/rendering correctly in-world (which does go through this).
+	 */
+	public function lookupStateIdFromDataWithFallback(BlockStateData $data) : ?int{
+		$networkId = $this->lookupStateIdFromData($data);
+		if($networkId !== null){
+			return $networkId;
+		}
+
+		$degradedStates = $data->getStates();
+		$removedAny = false;
+		foreach([
+			BlockStateNames::MC_CORNER,
+			BlockStateNames::MC_CONNECTION_EAST,
+			BlockStateNames::MC_CONNECTION_NORTH,
+			BlockStateNames::MC_CONNECTION_SOUTH,
+			BlockStateNames::MC_CONNECTION_WEST,
+		] as $newPropertyName){
+			if(isset($degradedStates[$newPropertyName])){
+				unset($degradedStates[$newPropertyName]);
+				$removedAny = true;
+			}
+		}
+		if(!$removedAny){
+			return null;
+		}
+		return $this->lookupStateIdFromData(new BlockStateData($data->getName(), $degradedStates, $data->getVersion()));
+	}
+
+	/**
 	 * Returns the blockstate meta value associated with the given blockstate runtime ID.
 	 * This is used for serializing crafting recipe inputs.
 	 */
@@ -228,7 +266,7 @@ final class BlockStateDictionary{
 	}
 
 	public static function loadFromString(string $blockPaletteContents, string $metaMapContents, bool $useHashedRuntimeIds = false) : self{
-		$upgrader = GlobalBlockStateHandlers::getUpgrader()->getBlockStateUpgrader();
+		$upgrader = GlobalBlockStateHandlers::getVendorOnlyBlockStateUpgrader();
 		$metaMap = json_decode($metaMapContents, flags: JSON_THROW_ON_ERROR);
 		if(!is_array($metaMap)){
 			throw new \InvalidArgumentException("Invalid metaMap, expected array for root type, got " . get_debug_type($metaMap));

@@ -49,6 +49,8 @@ use const pocketmine\BEDROCK_BLOCK_UPGRADE_SCHEMA_PATH;
 final class GlobalBlockStateHandlers{
 	private static ?BlockDataUpgrader $blockDataUpgrader = null;
 
+	private static ?BlockStateUpgrader $vendorOnlyBlockStateUpgrader = null;
+
 	private static ?BlockStateData $unknownBlockStateData = null;
 
 	private static ?BlockSerializerDeserializerRegistrar $registrar = null;
@@ -102,5 +104,22 @@ final class GlobalBlockStateHandlers{
 
 	public static function getUnknownBlockStateData() : BlockStateData{
 		return self::$unknownBlockStateData ??= BlockStateData::current(BlockTypeNames::INFO_UPDATE, []);
+	}
+
+	/**
+	 * 2026-09-18: used only for loading a *network* BlockStateDictionary (one protocol's own real
+	 * vanilla palette file), deliberately WITHOUT our own local schemas (connection_east/minecraft:corner
+	 * - see getUpgrader()). Those describe changes to OUR internal "current" format, not real changes a
+	 * given older protocol's actual client ever received - applying them here would inject properties
+	 * into that protocol's block state hashes (network IDs are content hashes for protocol >= 1.26.40)
+	 * that a real client's own independently-computed hash for the same block would never include,
+	 * making the ID unrecognisable to it. Confirmed live: real 1.26.45 client, fences/stairs invisible
+	 * and unplaceable after the shared upgrader (with our local schemas) got used here too.
+	 */
+	public static function getVendorOnlyBlockStateUpgrader() : BlockStateUpgrader{
+		return self::$vendorOnlyBlockStateUpgrader ??= new BlockStateUpgrader(BlockStateUpgradeSchemaUtils::loadSchemas(
+			Path::join(BEDROCK_BLOCK_UPGRADE_SCHEMA_PATH, 'nbt_upgrade_schema'),
+			PHP_INT_MAX
+		));
 	}
 }

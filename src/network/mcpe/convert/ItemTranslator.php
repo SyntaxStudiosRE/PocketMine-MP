@@ -84,7 +84,11 @@ final class ItemTranslator{
 		$blockStateData = $itemData->getBlock();
 
 		if($blockStateData !== null){
-			$blockRuntimeId = $this->blockStateDictionary->lookupStateIdFromData($blockStateData);
+			//see BlockStateDictionary::lookupStateIdFromDataWithFallback() - stairs/fences/panes/bars
+			//need this fallback here too, not just in BlockTranslator, or their creative inventory icon
+			//(built via toNetworkIdQuiet()) shows as the client's own "unknown item" placeholder on
+			//protocols below 1.26.50 even though the block itself places/renders correctly in-world.
+			$blockRuntimeId = $this->blockStateDictionary->lookupStateIdFromDataWithFallback($blockStateData);
 			if($blockRuntimeId === null){
 				//2026-09-17: was AssumptionFailedError (uncaught, crashes the whole server) - downgraded
 				//to a recoverable ItemTypeSerializeException (already caught quietly by
