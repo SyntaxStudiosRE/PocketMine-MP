@@ -34,12 +34,14 @@ use pocketmine\data\bedrock\item\BlockItemIdMap;
 use pocketmine\data\bedrock\item\ItemTypeDeserializeException;
 use pocketmine\data\bedrock\item\SavedItemData;
 use pocketmine\data\bedrock\item\SavedItemStackData;
+use pocketmine\data\bedrock\WorldDataVersions;
 use pocketmine\data\SavedDataLoadingException;
 use pocketmine\errorhandler\ErrorToExceptionHandler;
 use pocketmine\item\Item;
 use pocketmine\nbt\LittleEndianNbtSerializer;
 use pocketmine\utils\Filesystem;
 use pocketmine\utils\Utils;
+use pocketmine\world\format\io\GlobalBlockStateHandlers;
 use pocketmine\world\format\io\GlobalItemDataHandlers;
 use Symfony\Component\Filesystem\Path;
 use function base64_decode;
@@ -117,7 +119,14 @@ final class CraftingManagerFromDataHelper{
 					->read(ErrorToExceptionHandler::trapAndRemoveFalse(fn() => base64_decode($blockStatesRaw, true)))
 					->mustGetCompoundTag()
 					->getValue();
-			$blockStateData = BlockStateData::current($blockName, $blockStatesTag);
+			//2026-09-17: this JSON data has no version field of its own and predates our local
+			//connection_east/minecraft:corner schema bumps - upgrade it explicitly instead of tagging
+			//it BlockStateData::current() directly, or it fails to deserialize (silently dropped from
+			//creative inventory/recipes) for any block those schemas touch. See
+			//WorldDataVersions::PRE_LOCAL_SCHEMA_BLOCK_STATES.
+			$blockStateData = GlobalBlockStateHandlers::getUpgrader()->getBlockStateUpgrader()->upgrade(
+				new BlockStateData($blockName, $blockStatesTag, WorldDataVersions::PRE_LOCAL_SCHEMA_BLOCK_STATES)
+			);
 		}else{
 			$blockStateData = null;
 		}
