@@ -146,14 +146,22 @@ class NetworkInventoryAction{
 
 		$this->sourceType = VarInt::readUnsignedInt($in);
 
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
-			//2026-09-17: 1.26.40+ drops the redundant leading "always true" dummy bool entirely (same
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
+			//2026-09-17: 1.26.50+ drops the redundant leading "always true" dummy bool entirely (same
 			//cleanup pattern as PlayerAuthInputPacket/ItemStackResponse/InventoryTransactionPacket) -
 			//confirmed empirically live against a real 1.26.51 client via a gophertunnel-based MITM
 			//proxy: a double-nested optional (matching BakuTeam/Essential's approach) wrongly adds an
 			//extra byte whenever the value IS present (breaking block placement, SOURCE_CONTAINER),
 			//while just removing the dummy bool and keeping the existing single optional matches both
 			//the present case (placing blocks) and the absent case (SOURCE_WORLD dropped-item pickup).
+			//
+			//2026-09-18: this was wrongly gated to >= 1.26.40 initially, since the proxy test above only
+			//ever ran against a 1.26.51 client - never actually verified against a real 1.26.40-45
+			//client. That range (2168/2169) still uses the double-bool format below, confirmed live:
+			//a real 2169 client's UseItemTransactionData (right-clicking a custom, NBT-heavy block item
+			//against the ground) decoded as complete garbage under the no-dummy-bool assumption
+			//(nonsensical item id/count, then "Invalid raw value 116 for TriggerType" a few fields
+			//later) and decoded perfectly once treated as still having the dummy bools.
 			$this->windowId = CommonTypes::readOptional($in, Byte::readSigned(...));
 			$this->sourceFlags = CommonTypes::readOptional($in, VarInt::readUnsignedInt(...));
 		}else{
@@ -186,7 +194,7 @@ class NetworkInventoryAction{
 
 		VarInt::writeUnsignedInt($out, $this->sourceType);
 
-		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_40){
+		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
 			CommonTypes::writeOptional($out, $this->windowId, Byte::writeSigned(...));
 			CommonTypes::writeOptional($out, $this->sourceFlags, VarInt::writeUnsignedInt(...));
 		}else{
