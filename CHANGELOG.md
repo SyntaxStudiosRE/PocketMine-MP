@@ -2,6 +2,26 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.17
+
+### Fixed a crash right-clicking a named/enchanted block item (2168/2169)
+
+`NetworkInventoryAction`'s windowId/sourceFlags "no dummy bool" format (introduced for 1.26.50 in v5.44.2-syntax.14) was wrongly gated to `>= PROTOCOL_1_26_40` instead of `>= PROTOCOL_1_26_50` - the live proxy test that confirmed it only ever ran against a 1.26.51 client, never an actual 2168/2169 one. That range still needs the old double-bool format.
+
+Confirmed live in production: a real 2169 client sending a `USE_ITEM` transaction for a custom block item with a display name/lore/fake-enchant NBT (right-clicking a plugin's "Partner Package" - an Ender Chest - against the ground) decoded as complete garbage a few fields in ("Invalid raw value 116 for TriggerType"), kicking the player. Reproduced and fixed in test before touching production - full round-trip verified byte-for-byte against the real captured packet (612 bytes, zero unread after the fix).
+
+### Fixed fences/panes/bars/stairs invisible and unplaceable on 2168/2169
+
+A second, more widely-impactful bug found while investigating the crash above: for protocol >= 1.26.40, network block runtime IDs are content hashes - a client only recognizes an ID that matches what it independently computes from its own real vanilla palette. `BlockStateDictionary::loadFromString()` was upgrading every protocol's raw palette entries through the same `BlockStateUpgrader` used for our own internal/world-storage format, which includes our local `connection_east`/`minecraft:corner` schemas added in the last two releases. That injected those properties into 2168/2169's dictionary entries too, producing hashes a real 1.26.40-45 client - whose actual palette has no such properties at all - never computes on its own, making every fence/pane/bars/stair unrecognizable: invisible in the world, and any placement attempt silently rejected since the client's local prediction could never agree with the server.
+
+Split the two upgrade contexts, which need different behavior:
+- `GlobalBlockStateHandlers::getUpgrader()` (world/item storage - our own internal format evolving over time) keeps including our local schemas.
+- `GlobalBlockStateHandlers::getVendorOnlyBlockStateUpgrader()` (new) is used by `BlockStateDictionary::loadFromString()` instead - real upstream schemas only, so each protocol's dictionary matches a real client's own hash.
+
+Fences/panes were coincidentally unaffected in practice (a single-variant "fast path" in the dictionary bypasses property matching entirely), but stairs (8 variants per facing/upside-down combination) needed an explicit fallback: `BlockStateDictionary::lookupStateIdFromDataWithFallback()` retries with the new properties removed entirely (not just defaulted - the dictionary doesn't have the key at all) instead of falling back to the generic stone placeholder. Used by both `BlockTranslator` (world/chunk rendering) and `ItemTranslator` (item icons, e.g. creative inventory - found separately: stairs placed/rendered correctly but still showed the "unknown item" icon in creative until this was applied there too).
+
+Verified against real BetterAltay/BedrockData palette hashes, not just internal self-consistency: 128 combinations across stairs (all facings, upside-down, shapes) and fences/panes/bars (connected/unconnected) on protocol 2168, all matching ground truth exactly. Re-verified all 32 accepted protocols, including everything below 1.26.40, are unaffected.
+
 ## v5.44.2-syntax.16
 
 ### Stairs now render corners correctly on 1.26.50+ instead of stone
