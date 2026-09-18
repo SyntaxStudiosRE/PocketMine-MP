@@ -51,6 +51,7 @@ use pocketmine\block\utils\MultiAnyFacing;
 use pocketmine\block\utils\PillarRotation;
 use pocketmine\block\utils\SignLikeRotation;
 use pocketmine\block\utils\SlabType;
+use pocketmine\block\utils\StairShape;
 use pocketmine\block\Wall;
 use pocketmine\block\Wood;
 use pocketmine\data\bedrock\block\BlockLegacyMetadata;
@@ -406,6 +407,22 @@ final class CommonProperties{
 		$this->stairProperties = [
 			new BoolProperty(StateNames::UPSIDE_DOWN_BIT, fn(Stair $b) => $b->isUpsideDown(), fn(Stair $b, bool $v) => $b->setUpsideDown($v)),
 			new ValueFromIntProperty(StateNames::WEIRDO_DIRECTION, $vm->horizontalFacing5Minus, $hfGet, $hfSet),
+			//2026-09-17: minecraft:corner is new in Bedrock 1.26.50 - this fork already computed
+			//StairShape server-side (Stair::onNearbyBlockChange()) for collision boxes/support type, it
+			//just never got exposed over the network before. Old data upgraded to "none" by a
+			//WorldDataVersions-versioned schema - see resources/vanilla-bedrock-data-overrides/.
+			new ValueFromStringProperty(
+				StateNames::MC_CORNER,
+				EnumFromRawStateMap::string(StairShape::class, fn(StairShape $case) => match($case){
+					StairShape::STRAIGHT => BlockStateStringValues::MC_CORNER_NONE,
+					StairShape::INNER_LEFT => BlockStateStringValues::MC_CORNER_INNER_LEFT,
+					StairShape::INNER_RIGHT => BlockStateStringValues::MC_CORNER_INNER_RIGHT,
+					StairShape::OUTER_LEFT => BlockStateStringValues::MC_CORNER_OUTER_LEFT,
+					StairShape::OUTER_RIGHT => BlockStateStringValues::MC_CORNER_OUTER_RIGHT,
+				}),
+				fn(Stair $b) => $b->getShape(),
+				fn(Stair $b, StairShape $v) => $b->setShape($v)
+			),
 		];
 
 		$this->stemProperties = [

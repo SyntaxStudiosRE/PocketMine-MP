@@ -45,23 +45,26 @@ class Stair extends Transparent implements HorizontalFacing{
 	protected function describeBlockOnlyState(RuntimeDataDescriber $w) : void{
 		$w->horizontalFacing($this->facing);
 		$w->bool($this->upsideDown);
+		//2026-09-17: new in Bedrock 1.26.50 (minecraft:corner) - previously purely a transient,
+		//readStateFromWorld()-computed value never seen by chunk-sending (which reads the persistent
+		//state ID directly, bypassing readStateFromWorld() entirely - see onNearbyBlockChange() below).
+		$w->enum($this->shape);
 	}
 
-	public function readStateFromWorld() : Block{
-		parent::readStateFromWorld();
-
-		$this->collisionBoxes = null;
-
+	public function onNearbyBlockChange() : void{
 		$clockwise = Facing::rotateY($this->facing, true);
 		if(($backFacing = $this->getPossibleCornerFacing(false)) !== null){
-			$this->shape = $backFacing === $clockwise ? StairShape::OUTER_RIGHT : StairShape::OUTER_LEFT;
+			$shape = $backFacing === $clockwise ? StairShape::OUTER_RIGHT : StairShape::OUTER_LEFT;
 		}elseif(($frontFacing = $this->getPossibleCornerFacing(true)) !== null){
-			$this->shape = $frontFacing === $clockwise ? StairShape::INNER_RIGHT : StairShape::INNER_LEFT;
+			$shape = $frontFacing === $clockwise ? StairShape::INNER_RIGHT : StairShape::INNER_LEFT;
 		}else{
-			$this->shape = StairShape::STRAIGHT;
+			$shape = StairShape::STRAIGHT;
 		}
 
-		return $this;
+		if($shape !== $this->shape){
+			$this->shape = $shape;
+			$this->position->getWorld()->setBlock($this->position, $this);
+		}
 	}
 
 	public function isUpsideDown() : bool{ return $this->upsideDown; }

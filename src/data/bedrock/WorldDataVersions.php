@@ -42,12 +42,34 @@ final class WorldDataVersions{
 	 * minecraft:connection_east/north/south/west properties Mojang added to fences/glass panes/bars
 	 * in Bedrock 1.26.50 - without this, block state data (shop items, chests, etc) saved before the
 	 * HorizontalConnectableTrait port fails to deserialize with "Property ... is missing".
+	 *
+	 * Bumped again 34 -> 35 for 0333_1.21.60.34_to_1.21.60.35_syntaxstudios_stair_corner.json, same
+	 * reasoning but for minecraft:corner (stair shape) - also new in 1.26.50, also independently added
+	 * by axolotl-pm/BedrockBlockUpgradeSchema (0351_1.26.40_to_1.26.50.json) shortly after we found it,
+	 * confirming the same 97 stair block types and "none" default.
 	 */
 	public const BLOCK_STATES =
 		(1 << 24) | //major
 		(21 << 16) | //minor
 		(60 << 8) | //patch
-		(34); //revision
+		(35); //revision
+
+	/**
+	 * 2026-09-17: version to tag block state data with when it comes from a source that predates our
+	 * own local schema bumps above and was never given a real version number at all (e.g. the
+	 * nethergamesmc/bedrock-data-sourced creative.json/recipe JSON files, which store raw NBT states
+	 * with no version field) - passing this through BlockStateUpgrader triggers exactly our own
+	 * 0332/0333 schemas (and nothing older, since those are already reflected in the vendor data) to
+	 * backfill the new properties. Using BLOCK_STATES directly here would skip our schemas entirely,
+	 * silently failing to deserialize (e.g. missing from creative inventory/recipes) instead of
+	 * throwing - found live: stairs/fences/panes/bars disappeared from creative right after this
+	 * revision reached 34+.
+	 */
+	public const PRE_LOCAL_SCHEMA_BLOCK_STATES =
+		(1 << 24) | //major
+		(21 << 16) | //minor
+		(60 << 8) | //patch
+		(33); //revision
 
 	public const CHUNK = ChunkVersion::v1_21_120;
 	public const SUBCHUNK = SubChunkVersion::PALETTED_MULTI;

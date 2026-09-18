@@ -25,9 +25,12 @@ namespace pocketmine\network\mcpe\convert;
 
 use pocketmine\data\bedrock\BedrockDataFiles;
 use pocketmine\data\bedrock\block\BlockStateData;
+use pocketmine\data\bedrock\block\BlockStateNames;
 use pocketmine\data\bedrock\block\BlockStateSerializeException;
 use pocketmine\data\bedrock\block\BlockStateSerializer;
+use pocketmine\data\bedrock\block\BlockStateStringValues;
 use pocketmine\data\bedrock\block\BlockTypeNames;
+use pocketmine\nbt\tag\StringTag;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
 use pocketmine\utils\AssumptionFailedError;
 use pocketmine\utils\Filesystem;
@@ -215,6 +218,17 @@ final class BlockTranslator{
 			$blockStateData = $this->blockStateSerializer->serialize($internalStateId);
 
 			$networkId = $this->blockStateDictionary->lookupStateIdFromData($blockStateData);
+			if($networkId === null && ($cornerTag = $blockStateData->getState(BlockStateNames::MC_CORNER)) instanceof StringTag && $cornerTag->getValue() !== BlockStateStringValues::MC_CORNER_NONE){
+				//2026-09-17: minecraft:corner (stair shape) doesn't exist at all in protocols below
+				//1.26.50 - a non-"none" shape can never match there since old data (after upgrading via
+				//BlockStateUpgrader) only ever carries "none". Retry degraded to "none" instead of
+				//falling back to the generic stone placeholder - pre-1.26.50 clients already compute the
+				//visual stair corner themselves from neighbouring blocks, same as fences/panes before
+				//HorizontalConnectableTrait.
+				$degradedStates = $blockStateData->getStates();
+				$degradedStates[BlockStateNames::MC_CORNER] = new StringTag(BlockStateStringValues::MC_CORNER_NONE);
+				$networkId = $this->blockStateDictionary->lookupStateIdFromData(new BlockStateData($blockStateData->getName(), $degradedStates, $blockStateData->getVersion()));
+			}
 			if($networkId === null){
 				throw new BlockStateSerializeException("Unmapped blockstate returned by blockstate serializer: " . $blockStateData->toNbt());
 			}
