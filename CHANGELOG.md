@@ -2,6 +2,22 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.16
+
+### Stairs now render corners correctly on 1.26.50+ instead of stone
+
+Mojang added a `minecraft:corner` block state to stairs in 1.26.50 (straight/inner-left/inner-right/outer-left/outer-right) - the same kind of previously-client-only visual property that fences/glass panes gained (see v5.44.2-syntax.14). Found independently, then confirmed by `axolotl-pm/BedrockBlockUpgradeSchema` adding the identical fix (same 97 block names, same "none" default) shortly after.
+
+This fork already computed stair shape server-side (`Stair::readStateFromWorld()`, used for collision boxes/support type) but only as a transient, per-access value - chunk data sent to clients reads the block's *persistent* state ID directly and never called that code path, so it would always have serialized as the default "none" regardless of a stair's real neighbours. Ported the same event-driven, state-ID-persisted pattern already used by `Wall`/the `HorizontalConnectableTrait` blocks: shape is now part of `Stair::describeBlockOnlyState()`, recalculated by a new `onNearbyBlockChange()` (replacing `readStateFromWorld()`), and written back via `World::setBlock()` when it changes - same as walls placing/updating next to each other.
+
+Also added a `BlockTranslator` fallback: protocols below 1.26.50 have no `minecraft:corner` property at all, so a real (non-"none") shape can never match their palette - instead of falling back to the generic stone placeholder, it now retries the lookup degraded to "none" first, matching how those clients already computed the visual shape themselves before this change.
+
+Same `WorldDataVersions`-versioned upgrade schema mechanism as the fence/pane fix, extended to add `minecraft:corner: "none"` to old persisted stair data.
+
+### Fixed stairs, fences, glass panes, and bars missing from creative inventory and recipes
+
+Introduced by the schema changes above (and the earlier fence/pane one) - `CraftingManagerFromDataHelper` builds creative inventory and recipe item stacks from static JSON data authored by `nethergamesmc/bedrock-data`, which has no idea about our local `connection_east`/`minecraft:corner` schema additions. It tagged that data as `BlockStateData::current()` directly instead of running it through `BlockStateUpgrader` first, so deserializing any affected block silently failed (caught and swallowed as "probably an unknown item") the moment its properties stopped matching - no crash, just missing entries and missing recipes for every fence, pane, bars, and stair. Fixed by upgrading that data the same way world/item storage already does, tagged with a new `WorldDataVersions::PRE_LOCAL_SCHEMA_BLOCK_STATES` baseline so exactly our own schemas apply. Creative inventory went from 1581 to 1695 items; recipes for all affected blocks are back.
+
 ## v5.44.2-syntax.15
 
 ### Fixed a production crash on 1.26.40/1.26.45 (protocol 2168/2169) connect
