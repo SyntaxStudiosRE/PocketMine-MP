@@ -108,7 +108,12 @@ class UseItemTransactionData extends TransactionData{
 		}
 		$this->hotbarSlot = VarInt::readSignedInt($in);
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
-			$this->hand = VarInt::readUnsignedInt($in);
+			//2026-09-20: CloudburstMC/Protocol's "A few fixes" (7b02996) clarified this is a fixed
+			//single byte (HandSlot enum ordinal: 0=mainhand, 1=offhand), not a VarInt - we had this as
+			//VarInt::readUnsignedInt(), which happens to produce identical bytes for both valid values
+			//(0 and 1 both encode as one byte either way), so this was never actually wrong on the wire -
+			//fixed anyway to match the real format exactly instead of by coincidence.
+			$this->hand = Byte::readUnsigned($in);
 		}
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30){
 			$this->itemInHand = CommonTypes::getNetworkItemStackDescriptor($in, $protocolId);
@@ -147,7 +152,7 @@ class UseItemTransactionData extends TransactionData{
 		}
 		VarInt::writeSignedInt($out, $this->hotbarSlot);
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_50){
-			VarInt::writeUnsignedInt($out, $this->hand);
+			Byte::writeUnsigned($out, $this->hand);
 		}
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30){
 			CommonTypes::putNetworkItemStackDescriptor($out, $this->itemInHand, $protocolId);
