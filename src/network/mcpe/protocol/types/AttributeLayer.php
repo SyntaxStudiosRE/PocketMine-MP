@@ -77,7 +77,11 @@ final class AttributeLayer{
 	public function write(ByteBufferWriter $out, int $protocolId) : void{
 		CommonTypes::putString($out, $this->name);
 		if($protocolId >= ProtocolInfo::PROTOCOL_1_26_30){
-			CommonTypes::writeOptional($out, $this->name, CommonTypes::putString(...));
+			//2026-10-19: was $this->name again (copy-paste bug) instead of $this->noiseName - found by
+			//cross-referencing axolotl-pm/BedrockProtocol's identical fix (af2517f). Not currently sent
+			//anywhere in this fork (ClientboundAttributeLayerSyncPacket is registered but never
+			//constructed), so zero live impact, but fixed for correctness.
+			CommonTypes::writeOptional($out, $this->noiseName, CommonTypes::putString(...));
 		}
 		VarInt::writeUnsignedInt($out, $this->dimension);
 		$this->settings->write($out);
