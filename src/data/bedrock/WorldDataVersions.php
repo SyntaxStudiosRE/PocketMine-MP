@@ -71,6 +71,16 @@ final class WorldDataVersions{
 		(60 << 8) | //patch
 		(33); //revision
 
+	/**
+	 * 2026-10-19: general note for whoever adds the *next* local schema (0334+) - Mojang stopped bumping
+	 * the real blockstate version number after 1.21.60.33, so it no longer reliably distinguishes "has
+	 * these properties" from "doesn't" for anything we didn't add ourselves. Any NEW place that
+	 * constructs BlockStateData from data not already known to be "current" (not just the
+	 * creative/recipe case above) needs the same PRE_LOCAL_SCHEMA_BLOCK_STATES treatment, or upgrading
+	 * will silently no-op instead of backfilling the new property. Independently confirmed by a
+	 * third-party plugin (TheFaRHaNiR/BlockLoader) built to work around this exact same class of bug.
+	 */
+
 	public const CHUNK = ChunkVersion::v1_21_120;
 	public const SUBCHUNK = SubChunkVersion::PALETTED_MULTI;
 
