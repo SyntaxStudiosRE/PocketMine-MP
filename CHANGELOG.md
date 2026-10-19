@@ -2,6 +2,21 @@
 
 This changelog covers changes made in this fork on top of [NetherGamesMC/PocketMine-MP](https://github.com/NetherGamesMC/PocketMine-MP). For the upstream PocketMine-MP changelog (protocol/version history up to the point this fork was based on), see the [`changelogs/`](changelogs/) directory inherited from upstream.
 
+## v5.44.2-syntax.18
+
+### Two small correctness fixes found by cross-referencing other forks
+
+No live impact confirmed, both found while catching up on a month of activity across the forks we track as reference (axolotl-pm/PocketMine-MP, CloudburstMC/Protocol, BetterAltayBedrock/BetterAltay):
+
+- **`UseItemTransactionData.hand`** (1.26.50+): `CloudburstMC/Protocol`'s own fix clarified this is a fixed single byte (`HandSlot` enum ordinal: 0=mainhand, 1=offhand), not a VarInt. The two happen to produce identical bytes for both valid values, so this was never actually broken on the wire - fixed to match the real format exactly instead of by coincidence.
+- **`AttributeLayer::write()`**: was writing `$this->name` twice instead of `$this->name` then `$this->noiseName` for protocol >= 1.26.30 - a copy-paste bug, found via `axolotl-pm/BedrockProtocol`'s identical fix. `ClientboundAttributeLayerSyncPacket` (the only user of this type) is registered but never actually constructed/sent anywhere in this fork, so zero current impact.
+
+### Confirmed by the community: our 1.26.50 block-state schema fix approach was correct
+
+Found a third-party plugin, `TheFaRHaNiR/BlockLoader`, built specifically to work around the exact same bug we fixed in v5.44.2-syntax.16/17 (stairs missing `minecraft:corner`, fences missing `connection_east` on older persisted/vendor block state data). Its README explains the same root cause we found: Mojang stopped bumping the block-state version number after `1.21.60.33`, so a plain version check can't distinguish "already has these properties" from "never did" - confirming `WorldDataVersions::PRE_LOCAL_SCHEMA_BLOCK_STATES` (added in v5.44.2-syntax.17 for creative inventory/recipes) is the right shape of fix for this problem, not a one-off workaround.
+
+No action needed from this - noted for future reference in case we add more local schema extensions later.
+
 ## v5.44.2-syntax.17
 
 ### Fixed a crash right-clicking a named/enchanted block item (2168/2169)
